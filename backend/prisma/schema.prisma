@@ -1,0 +1,344 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modèle User (Utilisateur)
+model User {
+  id       String @id @default(cuid())
+  nom      String
+  prenom   String
+  email    String @unique
+  password String
+  role     Role   @default(COLLABORATEUR)
+
+  // Informations du cabinet (JSON pour flexibilité)
+  cabinetNom       String?
+  cabinetLogo      String?
+  cabinetAdresse   String?
+  cabinetTelephone String?
+  cabinetSiren     String?
+
+  isActive      Boolean @default(true)
+  emailVerified Boolean @default(false)
+
+  // Tokens
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
+  verificationToken   String?
+  refreshToken        String?
+
+  lastLogin    DateTime?
+  createdById  String?
+  createdBy    User?     @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers User[]    @relation("UserCreatedBy")
+
+  // Relations
+  dossiersResponsable Dossier[]         @relation("DossierResponsable")
+  dossiersCreated     Dossier[]         @relation("DossierCreated")
+  dossiersUpdated     Dossier[]         @relation("DossierUpdated")
+  dossiersCabinet     Dossier[]         @relation("DossierCabinet")
+  clients             Client[]          @relation("ClientCabinet")
+  documents           Document[]
+  factures            Facture[]         @relation("FactureCabinet")
+  evenements          Evenement[]       @relation("EvenementUtilisateur")
+  evenementsCabinet   Evenement[]       @relation("EvenementCabinet")
+  notes               DossierNote[]
+  timelineEntries     DossierTimeline[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  COLLABORATEUR
+}
+
+// Modèle Client
+model Client {
+  id        String  @id @default(cuid())
+  nom       String
+  prenom    String
+  email     String  @unique
+  telephone String?
+  sexe      Sexe?
+  adresse   String? @db.Text
+  
+  cabinetId String
+  cabinet   User   @relation("ClientCabinet", fields: [cabinetId], references: [id])
+  
+  // Relations
+  dossiers Dossier[]
+  factures Facture[]
+  
+  isArchived Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([cabinetId])
+  @@index([email])
+  @@map("clients")
+}
+
+enum Sexe {
+  HOMME
+  FEMME
+  AUTRE
+}
+
+// Modèle Dossier
+model Dossier {
+  id          String        @id @default(cuid())
+  nom         String
+  description String?       @db.Text
+  statut      DossierStatut @default(OUVERT)
+
+  // Relations
+  responsableId String
+  responsable   User   @relation("DossierResponsable", fields: [responsableId], references: [id])
+
+  cabinetId String
+  cabinet   User   @relation("DossierCabinet", fields: [cabinetId], references: [id])
+
+  // Client (référence)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  // Champs client pour compatibilité (dépréciés, à supprimer progressivement)
+  clientNom       String?
+  clientPrenom    String?
+  clientEmail     String?
+  clientTelephone String?
+  clientAdresse   String? @db.Text
+
+  // Informations juridiques
+  typeAffaire   TypeAffaire?
+  numeroAffaire String?      @unique
+  juridiction   String?
+
+  // Dates
+  dateOuverture         DateTime  @default(now())
+  dateCloture           DateTime?
+  dateProchainEvenement DateTime?
+
+  // Relations imbriquées
+  notes      DossierNote[]
+  timeline   DossierTimeline[]
+  documents  Document[]
+  factures   Facture[]
+  evenements Evenement[]
+
+  // Métadonnées
+  createdById String
+  createdBy   User    @relation("DossierCreated", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("DossierUpdated", fields: [updatedById], references: [id])
+
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cabinetId, statut])
+  @@index([responsableId])
+  @@index([clientId])
+  @@index([numeroAffaire])
+  @@map("dossiers")
+}
+
+enum DossierStatut {
+  OUVERT
+  FERME
+  EN_ATTENTE
+}
+
+enum TypeAffaire {
+  CIVIL
+  PENAL
+  COMMERCIAL
+  ADMINISTRATIF
+  TRAVAIL
+  FAMILIAL
+  IMMOBILIER
+  AUTRE
+}
+
+// Modèle DossierNote (Notes d'un dossier)
+model DossierNote {
+  id           String   @id @default(cuid())
+  contenu      String   @db.Text
+  auteurId     String
+  auteur       User     @relation(fields: [auteurId], references: [id])
+  dossierId    String
+  dossier      Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dateCreation DateTime @default(now())
+
+  @@index([dossierId])
+  @@map("dossier_notes")
+}
+
+// Modèle DossierTimeline (Timeline d'un dossier)
+model DossierTimeline {
+  id          String   @id @default(cuid())
+  action      String
+  description String?  @db.Text
+  auteurId    String?
+  auteur      User?    @relation(fields: [auteurId], references: [id])
+  dossierId   String
+  dossier     Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  date        DateTime @default(now())
+
+  @@index([dossierId])
+  @@map("dossier_timeline")
+}
+
+// Modèle Document
+model Document {
+  id          String             @id @default(cuid())
+  nomFichier  String
+  urlS3       String
+  keyS3       String
+  typeMime    String
+  taille      Int
+  description String?            @db.Text
+  categorie   DocumentCategorie?
+
+  dossierId String
+  dossier   Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User   @relation(fields: [uploaderId], references: [id])
+
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dossierId, createdAt(sort: Desc)])
+  @@index([uploaderId])
+  @@index([keyS3])
+  @@map("documents")
+}
+
+enum DocumentCategorie {
+  CONTRAT
+  PIECE_IDENTITE
+  JUSTIFICATIF
+  COURRIER
+  JUGEMENT
+  PROCES_VERBAL
+  FACTURE
+  AUTRE
+}
+
+// Modèle Facture
+model Facture {
+  id            String        @id @default(cuid())
+  numeroFacture String        @unique
+  totalHT       Float         @default(0)
+  tva           Float         @default(20)
+  totalTTC      Float         @default(0)
+  statut        FactureStatut @default(ENVOYEE)
+
+  dateEmission DateTime  @default(now())
+  dateEcheance DateTime
+  datePaiement DateTime?
+
+  notes String? @db.Text
+
+  dossierId String
+  dossier   Dossier @relation(fields: [dossierId], references: [id])
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  cabinetId String
+  cabinet   User   @relation("FactureCabinet", fields: [cabinetId], references: [id])
+
+  lignes FactureLigne[]
+
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cabinetId, createdAt(sort: Desc)])
+  @@index([dossierId])
+  @@index([clientId])
+  @@index([numeroFacture])
+  @@index([statut])
+  @@map("factures")
+}
+
+enum FactureStatut {
+  ENVOYEE
+  PAYEE
+  EN_RETARD
+}
+
+// Modèle FactureLigne (Lignes de facturation)
+model FactureLigne {
+  id           String @id @default(cuid())
+  description  String
+  quantite     Float
+  prixUnitaire Float
+  totalLigne   Float
+
+  factureId String
+  facture   Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+  @@map("facture_lignes")
+}
+
+// Modèle Evenement (Événements d'agenda)
+model Evenement {
+  id            String          @id @default(cuid())
+  titre         String
+  description   String?         @db.Text
+  dateDebut     DateTime
+  dateFin       DateTime
+  typeEvenement TypeEvenement   @default(TACHE)
+  
+  // Dossier lié (optionnel)
+  dossierId     String?
+  dossier       Dossier?        @relation(fields: [dossierId], references: [id])
+  
+  // Utilisateur créateur
+  utilisateurId String
+  utilisateur   User            @relation("EvenementUtilisateur", fields: [utilisateurId], references: [id])
+  
+  // Cabinet (multi-tenant)
+  cabinetId     String
+  cabinet       User            @relation("EvenementCabinet", fields: [cabinetId], references: [id])
+  
+  isArchived    Boolean         @default(false)
+  
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([cabinetId, dateDebut])
+  @@index([utilisateurId])
+  @@index([dossierId])
+  @@map("evenements")
+}
+
+enum TypeEvenement {
+  AUDIENCE
+  RENDEZ_VOUS
+  ECHEANCE
+  TACHE
+}

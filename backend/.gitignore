@@ -1,0 +1,35 @@
+# === Dépendances ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# === Variables d'environnement ===
+.env
+.env.local
+.env.production
+
+# === Logs ===
+logs/
+*.log
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === Uploads temporaires ===
+uploads/
+temp/
+
+# === Build ===
+dist/
+build/

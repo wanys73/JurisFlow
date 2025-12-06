@@ -1,7 +1,10 @@
+// ⚠️ CRITIQUE : Charger les variables d'environnement EN PREMIER
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { prisma } from './lib/prisma.js';
 
@@ -15,6 +18,8 @@ import statistiqueRoutes from './routes/statistiqueRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 import evenementRoutes from './routes/evenementRoutes.js';
 import rapportRoutes from './routes/rapportRoutes.js';
+import cabinetRoutes from './routes/cabinetRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // Import des middlewares d'erreur
 import {
@@ -25,8 +30,9 @@ import {
   handleValidationError
 } from './middleware/errorMiddleware.js';
 
-// Configuration des variables d'environnement
-dotenv.config();
+// Import des jobs cron
+import { startEventReminderJob } from './jobs/eventReminderJob.js';
+import { startNotificationJob } from './jobs/notificationJob.js';
 
 // Initialisation de l'application Express
 const app = express();
@@ -37,10 +43,35 @@ const app = express();
 app.use(helmet());
 
 // CORS - Configuration pour permettre les requêtes depuis le frontend
+// En développement, autoriser plusieurs ports localhost
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.FRONTEND_URL || 'http://localhost:5173']
+  : [
+      'http://localhost:5173',
+      'http://localhost:5175',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL
+    ].filter(Boolean); // Filtrer les valeurs undefined
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origin (ex: Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    // En développement, autoriser tous les localhost
+    if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+      return callback(null, true);
+    }
+    
+    // Vérifier si l'origine est autorisée
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -115,6 +146,8 @@ app.use('/api', documentRoutes);
 
 // Routes de génération IA
 app.use('/api/documents', iaRoutes);
+// Routes de chat IA
+app.use('/api/ia', iaRoutes);
 
 // Routes de facturation
 app.use('/api/factures', factureRoutes);
@@ -130,6 +163,10 @@ app.use('/api', evenementRoutes);
 
 // Routes Rapports (statistiques avancées)
 app.use('/api', rapportRoutes);
+
+// Routes Cabinet (paramètres)
+app.use('/api', cabinetRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // === GESTION DES ERREURS ===
 
@@ -155,10 +192,13 @@ const connectDB = async () => {
     // Vérifier la connexion avec une requête simple
     await prisma.$queryRaw`SELECT 1`;
     console.log(`📊 Connexion Prisma opérationnelle`);
-
+    return true;
   } catch (error) {
     console.error(`❌ Erreur de connexion à la base de données: ${error.message}`);
-    process.exit(1);
+    console.error(`📍 Vérifiez DATABASE_URL dans le fichier .env`);
+    console.error(`⚠️  Le serveur va démarrer mais certaines fonctionnalités seront indisponibles.`);
+    // NE PAS FAIRE process.exit(1) - permet au serveur de démarrer même si la DB est temporairement inaccessible
+    return false;
   }
 };
 
@@ -169,6 +209,9 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   // Connexion à la base de données
   await connectDB();
+
+  // Démarrer le job cron pour les rappels d'événements
+  startEventReminderJob();
 
   // Démarrage du serveur
   app.listen(PORT, () => {
@@ -182,6 +225,9 @@ const startServer = async () => {
     console.log(`   POST   /api/auth/refresh   - Rafraîchir le token`);
     console.log(`   POST   /api/auth/logout    - Déconnexion`);
     console.log(`   GET    /api/auth/me        - Profil utilisateur`);
+    console.log(`   GET    /api/auth/confirm/:token - Confirmer email`);
+    console.log(`   GET    /api/notifications  - Notifications non lues`);
+    console.log(`   PUT    /api/notifications/:id/lu - Marquer comme lue`);
     console.log(`   GET    /api/dossiers       - Lister les dossiers`);
     console.log(`   POST   /api/dossiers       - Créer un dossier`);
     console.log(`   GET    /api/dossiers/:id   - Voir un dossier`);
@@ -193,6 +239,7 @@ const startServer = async () => {
     console.log(`   DELETE /api/documents/:id          - Supprimer un document`);
     console.log(`   GET    /api/documents/templates    - Templates disponibles (IA)`);
     console.log(`   POST   /api/documents/generate     - Générer document avec IA`);
+    console.log(`   POST   /api/ia/chat                - Chat avec l'IA (conseils juridiques)`);
     console.log(`   GET    /api/factures              - Lister les factures`);
     console.log(`   POST   /api/factures              - Créer une facture`);
     console.log(`   GET    /api/factures/:id          - Voir une facture`);

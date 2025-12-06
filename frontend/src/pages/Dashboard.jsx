@@ -1,29 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import Layout from '../components/Layout';
 import { 
-  Scale, 
-  LogOut, 
-  Folder, 
-  Users, 
-  FileText, 
-  Calendar, 
-  Euro, 
-  BarChart3,
-  Settings,
-  Search,
-  Bell,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Folder as FolderIcon
 } from 'lucide-react';
 import { statistiqueService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
   const [kpis, setKpis] = useState({
     totalRevenus: 0,
     totalImpayes: 0,
@@ -69,10 +54,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   // Formatage des montants en euros
   const formatEuro = (montant) => {
@@ -113,116 +94,8 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary-50">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-secondary-200 flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-secondary-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center">
-              <Scale className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-secondary-900">JurisFlow</h1>
-              <p className="text-xs text-secondary-500">Version 1.0 MVP</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          <NavItem 
-            icon={BarChart3} 
-            label="Dashboard" 
-            active={location.pathname === '/dashboard'}
-            onClick={() => navigate('/dashboard')}
-          />
-          <NavItem 
-            icon={Folder} 
-            label="Dossiers" 
-            active={location.pathname === '/dossiers'}
-            onClick={() => navigate('/dossiers')}
-          />
-          <NavItem icon={Users} label="Clients" />
-          <NavItem icon={FileText} label="Documents" />
-          <NavItem icon={Calendar} label="Agenda" />
-          <NavItem 
-            icon={Euro} 
-            label="Facturation"
-            active={location.pathname === '/facturation'}
-            onClick={() => navigate('/facturation')}
-          />
-          <NavItem icon={BarChart3} label="Statistiques" />
-          <NavItem icon={Settings} label="Paramètres" />
-        </nav>
-
-        {/* User info */}
-        <div className="p-4 border-t border-secondary-200">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-secondary-900 truncate">
-                {user?.prenom} {user?.nom}
-              </p>
-              <p className="text-xs text-secondary-500 truncate">{user?.email}</p>
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 mt-1">
-                {user?.role}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="ml-2 p-2 text-secondary-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Déconnexion"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="ml-64">
-        {/* Header */}
-        <header className="bg-white border-b border-secondary-200 px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Search */}
-            <div className="flex-1 max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-secondary-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un dossier, client, document..."
-                  className="w-full pl-10 pr-4 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center space-x-4 ml-4">
-              <button className="relative p-2 text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100 rounded-lg transition-colors">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div className="p-8">
-          {/* Welcome message */}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-secondary-900 mb-2">
-              Tableau de bord, {user?.prenom} 👋
-            </h2>
-            <p className="text-secondary-600">
-              Vue d'ensemble de votre activité juridique
-            </p>
-            {user?.role === 'admin' && user?.cabinet?.nom && (
-              <p className="text-sm text-primary-600 mt-1">
-                Cabinet : {user.cabinet.nom}
-              </p>
-            )}
-          </div>
-
+    <Layout>
+      <div className="p-8">
           {/* Loading state */}
           {loading && (
             <div className="text-center py-12">
@@ -233,7 +106,7 @@ const Dashboard = () => {
 
           {/* Error state */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="bg-red-500/20 backdrop-blur-sm border border-red-500/30 rounded-lg p-4 mb-6">
               <div className="flex items-center">
                 <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
                 <p className="text-red-800">{error}</p>
@@ -246,33 +119,33 @@ const Dashboard = () => {
             <>
               {/* Section Revenus */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-secondary-900 mb-4">Revenus</h3>
+                <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4 font-display">Revenus</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Total Revenus */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-cyan-500/20 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6 text-green-600" />
+                      <div className="w-12 h-12 rounded-lg bg-green-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {formatEuro(kpis.totalRevenus)}
                     </p>
-                    <p className="text-sm text-secondary-600">Total des revenus</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">Total des revenus</p>
                     <p className="text-xs text-green-600 mt-2">Factures payées</p>
                   </div>
 
                   {/* Total Impayés */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
-                        <AlertCircle className="w-6 h-6 text-red-600" />
+                      <div className="w-12 h-12 rounded-lg bg-red-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {formatEuro(kpis.totalImpayes)}
                     </p>
-                    <p className="text-sm text-secondary-600">Total des impayés</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">Total des impayés</p>
                     <p className="text-xs text-red-600 mt-2">Factures en retard</p>
                   </div>
                 </div>
@@ -280,61 +153,61 @@ const Dashboard = () => {
 
               {/* Section Dossiers */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-secondary-900 mb-4">Dossiers</h3>
+                <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4 font-display">Dossiers</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Total Dossiers */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-violet-500/30 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
-                        <Folder className="w-6 h-6 text-purple-600" />
+                      <div className="w-12 h-12 rounded-lg bg-purple-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <FolderIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {kpis.repartitionDossiers.total}
                     </p>
-                    <p className="text-sm text-secondary-600">Total des dossiers</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">Total des dossiers</p>
                     <p className="text-xs text-purple-600 mt-2">Tous statuts confondus</p>
                   </div>
 
                   {/* Dossiers Ouverts */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                        <Folder className="w-6 h-6 text-green-600" />
+                      <div className="w-12 h-12 rounded-lg bg-green-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <FolderIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {kpis.repartitionDossiers.ouverts}
                     </p>
-                    <p className="text-sm text-secondary-600">Dossiers ouverts</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">Dossiers ouverts</p>
                     <p className="text-xs text-green-600 mt-2">En cours de traitement</p>
                   </div>
 
                   {/* Dossiers En Attente */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-yellow-500/30 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
-                        <Folder className="w-6 h-6 text-yellow-600" />
+                      <div className="w-12 h-12 rounded-lg bg-yellow-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <FolderIcon className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {kpis.repartitionDossiers.enAttente}
                     </p>
-                    <p className="text-sm text-secondary-600">En attente</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">En attente</p>
                     <p className="text-xs text-yellow-600 mt-2">En attente de traitement</p>
                   </div>
 
                   {/* Dossiers Fermés */}
-                  <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md card-interactive p-6 hover:shadow-lg hover:shadow-gray-500/30 transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <Folder className="w-6 h-6 text-gray-600" />
+                      <div className="w-12 h-12 rounded-lg bg-white/30 dark:bg-slate-950/30 backdrop-blur-sm flex items-center justify-center">
+                        <FolderIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-secondary-900 mb-1">
+                    <p className="text-3xl font-bold text-secondary-900 dark:text-white mb-1">
                       {kpis.repartitionDossiers.fermes}
                     </p>
-                    <p className="text-sm text-secondary-600">Dossiers fermés</p>
+                    <p className="text-sm font-medium text-secondary-700 dark:text-secondary-200">Dossiers fermés</p>
                     <p className="text-xs text-gray-600 mt-2">Clôturés</p>
                   </div>
                 </div>
@@ -343,8 +216,8 @@ const Dashboard = () => {
               {/* Graphiques */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Graphique 1: Revenus mensuels */}
-                <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-secondary-900 mb-6">
+                <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md p-6 card-interactive hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300">
+                  <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-6 font-display">
                     Revenus des 12 derniers mois
                   </h3>
                   {revenusMensuels.length > 0 ? (
@@ -387,8 +260,8 @@ const Dashboard = () => {
                 </div>
 
                 {/* Graphique 2: Répartition des dossiers */}
-                <div className="bg-white rounded-lg border border-secondary-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-secondary-900 mb-6">
+                <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md p-6 card-interactive hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-300">
+                  <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-6 font-display">
                     Répartition des dossiers
                   </h3>
                   {pieData.length > 0 ? (
@@ -436,25 +309,7 @@ const Dashboard = () => {
             </>
           )}
         </div>
-      </main>
-    </div>
-  );
-};
-
-// Composant pour les items de navigation
-const NavItem = ({ icon: Icon, label, active = false, onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-        active
-          ? 'bg-primary-50 text-primary-600'
-          : 'text-secondary-600 hover:bg-secondary-100 hover:text-secondary-900'
-      }`}
-    >
-      <Icon className="w-5 h-5" />
-      <span className="font-medium">{label}</span>
-    </button>
+    </Layout>
   );
 };
 

@@ -14,7 +14,8 @@ import {
   Loader2,
   Calendar,
   DollarSign,
-  FileCheck
+  FileCheck,
+  Download
 } from 'lucide-react';
 
 const Facturation = () => {
@@ -72,13 +73,48 @@ const Facturation = () => {
     try {
       setLoading(true);
       setError('');
-      const params = {};
-      if (filters.statut) params.statut = filters.statut;
-      const response = await factureService.getFactures(params);
-      setFactures(response.data.factures || []);
+      console.log('🟢 [FRONTEND] ===========================================');
+      console.log('🟢 [FRONTEND] Chargement des factures');
+      console.log('🟢 [FRONTEND] Filtres:', filters);
+      console.log('🟢 [FRONTEND] Statut:', filters.statut);
+      
+      // Passer les filtres directement comme dans Dossiers
+      const response = await factureService.getFactures(filters);
+      
+      console.log('🟢 [FRONTEND] Réponse reçue:', response);
+      console.log('🟢 [FRONTEND] Success:', response.success);
+      console.log('🟢 [FRONTEND] Data:', response.data);
+      
+      if (response.success && response.data && response.data.factures) {
+        console.log('🟢 [FRONTEND] ✅ Factures chargées:', response.data.factures.length);
+        setFactures(response.data.factures);
+      } else {
+        console.log('🟢 [FRONTEND] ⚠️ Aucune facture trouvée');
+        setFactures([]);
+        setError('Aucune facture trouvée');
+      }
     } catch (err) {
-      console.error('Erreur lors du chargement des factures:', err);
-      setError('Impossible de charger les factures');
+      console.error('🔴 [FRONTEND] ❌ ERREUR');
+      console.error('🔴 [FRONTEND] Message:', err.message);
+      console.error('🔴 [FRONTEND] Response:', err.response?.data);
+      console.error('🔴 [FRONTEND] Status:', err.response?.status);
+      console.error('🔴 [FRONTEND] Error details:', err.response?.data?.details);
+      console.error('🔴 [FRONTEND] Error code:', err.response?.data?.details?.code);
+      console.error('🔴 [FRONTEND] Error name:', err.response?.data?.details?.name);
+      console.error('🔴 [FRONTEND] Error message:', err.response?.data?.details?.message);
+      console.error('🔴 [FRONTEND] Full error response:', JSON.stringify(err.response?.data, null, 2));
+      
+      // Afficher l'erreur complète dans une alerte pour debug
+      if (err.response?.data?.details) {
+        alert(`ERREUR BACKEND:\nCode: ${err.response.data.details.code}\nMessage: ${err.response.data.details.message}\n\nVoir la console pour plus de détails.`);
+      }
+      
+      console.error('🔴 [FRONTEND] Stack:', err.stack);
+      
+      // Afficher l'erreur détaillée du backend si disponible
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Impossible de charger les factures';
+      setError(errorMessage);
+      setFactures([]);
     } finally {
       setLoading(false);
     }
@@ -246,6 +282,34 @@ const Facturation = () => {
     }
   };
 
+  // Télécharger le PDF d'une facture
+  const handleDownloadPDF = async (facture) => {
+    try {
+      console.log('📄 Téléchargement du PDF pour la facture:', facture.numeroFacture);
+      const response = await factureService.downloadPDF(facture.id);
+      
+      // Créer un blob à partir de la réponse
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Créer un lien temporaire et déclencher le téléchargement
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Facture_${facture.numeroFacture}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Nettoyer
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('✅ PDF téléchargé avec succès');
+    } catch (err) {
+      console.error('❌ Erreur lors du téléchargement du PDF:', err);
+      alert('Erreur lors du téléchargement du PDF');
+    }
+  };
+
   const handleMarquerPayee = async (facture) => {
     try {
       await factureService.marquerPayee(facture.id);
@@ -267,7 +331,7 @@ const Facturation = () => {
     return styles[statutFormate] || 'bg-secondary-200 text-secondary-800';
   };
 
-  // Filtrer les factures par recherche
+  // Filtrer les factures par recherche textuelle (le backend gère le statut)
   const filteredFactures = factures.filter(facture => {
     if (filters.search) {
       const search = filters.search.toLowerCase();
@@ -296,7 +360,7 @@ const Facturation = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-secondary-900 mb-2">
+            <h1 className="text-3xl font-bold text-secondary-900 dark:text-white mb-2 font-display">
               Facturation
             </h1>
             <p className="text-secondary-600">
@@ -313,21 +377,24 @@ const Facturation = () => {
         </div>
 
         {/* Filtres */}
-        <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-4 mb-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1 relative">
+        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md p-4 mb-6 hover:shadow-lg transition-all duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Recherche */}
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-secondary-400" />
               <input
                 type="text"
                 placeholder="Rechercher par numéro, dossier ou client..."
                 value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="input pl-10 w-full"
+                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                className="input pl-10"
               />
             </div>
+
+            {/* Filtre par statut */}
             <select
               value={filters.statut}
-              onChange={(e) => setFilters({ ...filters, statut: e.target.value })}
+              onChange={(e) => setFilters(prev => ({ ...prev, statut: e.target.value }))}
               className="input"
             >
               <option value="">Tous les statuts</option>
@@ -335,6 +402,14 @@ const Facturation = () => {
               <option value="Payée">Payée</option>
               <option value="En retard">En retard</option>
             </select>
+
+            {/* Bouton réinitialiser */}
+            <button
+              onClick={() => setFilters({ statut: '', search: '' })}
+              className="btn-secondary"
+            >
+              Réinitialiser
+            </button>
           </div>
         </div>
 
@@ -348,7 +423,7 @@ const Facturation = () => {
             {error}
           </div>
         ) : filteredFactures.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-secondary-200 p-12 text-center">
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md p-12 text-center hover:shadow-lg transition-all duration-300">
             <FileText className="w-16 h-16 text-secondary-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-secondary-900 mb-2">
               Aucune facture
@@ -364,10 +439,10 @@ const Facturation = () => {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-secondary-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-all duration-300">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-secondary-50 border-b border-secondary-200">
+                <thead className="bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-secondary-700 uppercase tracking-wider">
                       N° Facture
@@ -392,9 +467,9 @@ const Facturation = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-secondary-200">
+                <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
                   {filteredFactures.map((facture) => (
-                    <tr key={facture.id} className="hover:bg-secondary-50 transition-colors">
+                    <tr key={facture.id} className="table-row-interactive hover:shadow-md hover:shadow-cyan-500/20 cursor-pointer border-l-2 border-transparent hover:border-primary-500/60 transition-all duration-300">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => navigate(`/factures/${facture.id}`)}
@@ -441,6 +516,13 @@ const Facturation = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end space-x-2">
                           <button
+                            onClick={() => handleDownloadPDF(facture)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Télécharger PDF"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                          <button
                             onClick={() => handleOpenModal('edit', facture)}
                             className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                             title="Modifier"
@@ -464,10 +546,10 @@ const Facturation = () => {
           </div>
         )}
 
-        {/* Modal de création/édition */}
+        {/* Modal de création/édition avec glassmorphism */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-elegant max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-elegant max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-secondary-200">
                 <div className="flex items-center space-x-3">

@@ -67,25 +67,39 @@ export const authService = {
   // Inscription
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
-    if (response.data.success) {
+    if (response.data.success && response.data.data) {
       const { user, tokens } = response.data.data;
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
-      localStorage.setItem('user', JSON.stringify(user));
+      
+      // Inscription avec connexion automatique (tokens toujours présents)
+      if (tokens) {
+        localStorage.setItem('accessToken', tokens.accessToken);
+        localStorage.setItem('refreshToken', tokens.refreshToken);
+        localStorage.setItem('user', JSON.stringify(user));
+        console.log('✅ Inscription et connexion automatique réussies');
+      }
     }
     return response.data;
   },
 
   // Connexion
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    if (response.data.success) {
-      const { user, tokens } = response.data.data;
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
-      localStorage.setItem('user', JSON.stringify(user));
+    try {
+      console.log('🔐 Tentative de connexion vers:', api.defaults.baseURL + '/auth/login');
+      const response = await api.post('/auth/login', credentials);
+      console.log('✅ Réponse reçue:', response.data);
+      if (response.data.success && response.data.data) {
+        const { user, tokens } = response.data.data;
+        localStorage.setItem('accessToken', tokens.accessToken);
+        localStorage.setItem('refreshToken', tokens.refreshToken);
+        localStorage.setItem('user', JSON.stringify(user));
+        console.log('✅ Tokens sauvegardés, utilisateur:', user.email);
+      }
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erreur lors de la connexion:', error);
+      console.error('❌ Détails:', error.response?.data || error.message);
+      throw error;
     }
-    return response.data;
   },
 
   // Déconnexion
@@ -104,6 +118,21 @@ export const authService = {
   // Récupérer le profil
   getProfile: async () => {
     const response = await api.get('/auth/me');
+    if (response.data.success && response.data.data) {
+      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+    }
+    return response.data;
+  },
+
+  // Récupérer les préférences utilisateur
+  getPreferences: async () => {
+    const response = await api.get('/auth/preferences');
+    return response.data;
+  },
+
+  // Mettre à jour les préférences utilisateur
+  updatePreferences: async (preferences) => {
+    const response = await api.put('/auth/preferences', preferences);
     return response.data;
   },
 
@@ -252,7 +281,27 @@ export const documentService = {
 export const factureService = {
   // Récupérer toutes les factures
   getFactures: async (params = {}) => {
-    const response = await api.get('/factures', { params });
+    // Nettoyer les paramètres : ne garder que les valeurs non vides
+    const cleanParams = {};
+    Object.keys(params).forEach(key => {
+      const value = params[key];
+      if (value !== null && value !== undefined && value !== '') {
+        cleanParams[key] = value;
+      }
+    });
+    
+    // Utiliser URLSearchParams comme pour getDossiers pour un encodage cohérent
+    console.log('[DEBUG API] Paramètres nettoyés pour getFactures:', cleanParams);
+    console.log('[DEBUG API] Statut brut:', cleanParams.statut);
+    console.log('[DEBUG API] Type de statut:', typeof cleanParams.statut);
+    
+    const queryParams = new URLSearchParams(cleanParams).toString();
+    const url = `/factures${queryParams ? `?${queryParams}` : ''}`;
+    console.log('[DEBUG API] URL complète:', url);
+    console.log('[DEBUG API] Statut dans l\'URL:', queryParams);
+    
+    const response = await api.get(url);
+    console.log('[DEBUG API] Réponse reçue:', response.data);
     return response.data;
   },
 
@@ -331,7 +380,7 @@ export const evenementService = {
 // Exporter l'instance axios pour les cas spéciaux (comme les PDFs)
 export { api };
 
-// Service IA - Génération de documents
+// Service IA - Génération de documents et Chat
 export const iaService = {
   // Récupérer les templates disponibles
   getTemplates: async () => {
@@ -345,6 +394,15 @@ export const iaService = {
       dossierId,
       templateType,
       promptContextuel
+    });
+    return response.data;
+  },
+
+  // Chat avec l'IA pour conseils juridiques
+  chat: async (message, history = []) => {
+    const response = await api.post('/ia/chat', {
+      message,
+      history
     });
     return response.data;
   }
@@ -370,6 +428,57 @@ export const rapportService = {
   // Récupérer le rapport annuel avec filtres
   getRapportAnnuel: async (params = {}) => {
     const response = await api.get('/rapports/annuel', { params });
+    return response.data;
+  }
+};
+
+// Service Cabinet - Paramètres
+export const notificationService = {
+  // Récupérer les notifications non lues
+  getNotifications: async () => {
+    const response = await api.get('/notifications');
+    return response.data;
+  },
+
+  // Récupérer toutes les notifications
+  getAllNotifications: async (limit = 50) => {
+    const response = await api.get('/notifications/all', { params: { limit } });
+    return response.data;
+  },
+
+  // Marquer une notification comme lue
+  markAsRead: async (notificationId) => {
+    const response = await api.put(`/notifications/${notificationId}/lu`);
+    return response.data;
+  },
+
+  // Marquer toutes les notifications comme lues
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/mark-all-read');
+    return response.data;
+  }
+};
+
+export const cabinetService = {
+  // Récupérer les paramètres du cabinet
+  getSettings: async () => {
+    const response = await api.get('/cabinet/settings');
+    return response.data;
+  },
+
+  // Mettre à jour les paramètres du cabinet
+  updateSettings: async (formData) => {
+    const response = await api.put('/cabinet/settings', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+
+  // Changer le mot de passe
+  changePassword: async (passwordData) => {
+    const response = await api.put('/cabinet/change-password', passwordData);
     return response.data;
   }
 };

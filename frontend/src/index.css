@@ -1,60 +1,420 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Délais d'animation pour les blobs */
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Mode sombre */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .card {
+  @apply bg-secondary-800 border-secondary-700;
+}
+
+.dark .input {
+  @apply bg-secondary-700 border-secondary-600 text-white placeholder-secondary-400;
+}
+
+.dark .btn-primary {
+  @apply bg-primary-600 hover:bg-primary-700;
+}
+
+.dark .btn-secondary {
+  @apply bg-secondary-700 hover:bg-secondary-600 text-white;
+}
+
 @layer base {
   body {
-    @apply bg-secondary-50 text-secondary-900 font-sans antialiased;
+    background-color: transparent !important;
+    @apply text-secondary-900 font-sans antialiased;
+  }
+  
+  #root {
+    background-color: transparent !important;
+  }
+  
+  html {
+    background-color: transparent !important;
   }
 }
 
 @layer components {
-  /* Boutons */
+  /* Effets hover globaux pour tous les éléments interactifs */
+  .interactive {
+    @apply transition-all duration-300 ease-in-out cursor-pointer;
+  }
+  
+  .interactive:hover {
+    @apply scale-[1.03];
+  }
+  
+  .interactive:active {
+    @apply scale-[0.98];
+  }
+  
+  /* Boutons avec effets hover améliorés */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn:hover:not(:disabled) {
+    @apply scale-[1.02];
+  }
+  
+  .btn:active:not(:disabled) {
+    @apply scale-[0.98];
   }
   
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply btn bg-gradient-to-r from-primary-600 to-cyan-600 text-white hover:from-primary-700 hover:to-cyan-700 focus:ring-primary-500 shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40;
   }
   
   .btn-secondary {
     @apply btn bg-secondary-200 text-secondary-900 hover:bg-secondary-300 focus:ring-secondary-500;
   }
   
+  .dark .btn-secondary {
+    @apply bg-secondary-700 hover:bg-secondary-600 text-white;
+  }
+  
   .btn-outline {
     @apply btn border-2 border-primary-600 text-primary-600 hover:bg-primary-50 focus:ring-primary-500;
   }
   
-  /* Inputs */
+  .dark .btn-outline {
+    @apply border-primary-400 text-primary-400 hover:bg-primary-900/30;
+  }
+  
+  /* Cartes avec effet hover */
+  .card-interactive {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .card-interactive:hover {
+    @apply scale-[1.03] -translate-y-1;
+  }
+  
+  /* Items de menu avec effet hover */
+  .menu-item {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .menu-item:hover {
+    @apply scale-[1.03];
+  }
+  
+  /* Lignes de tableau avec effet hover */
+  .table-row-interactive {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .table-row-interactive:hover {
+    @apply scale-[1.01];
+  }
+  
+  /* Inputs - Blanc solide */
   .input {
-    @apply w-full px-4 py-2 border border-secondary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/60 transition-all duration-200 bg-white text-secondary-900;
+  }
+  
+  .dark .input {
+    @apply bg-slate-800 border-slate-600 text-white placeholder-secondary-400;
+  }
+  
+  .dark .input:focus {
+    @apply border-primary-500/60 ring-primary-500/60;
   }
   
   .input-error {
     @apply border-red-500 focus:ring-red-500;
   }
   
-  /* Cards */
+  /* Cards - Blanc solide pour lisibilité maximale */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-secondary-200;
+    @apply bg-white rounded-xl shadow-md border border-slate-100 transition-all duration-300;
+  }
+  
+  .card:hover {
+    @apply shadow-lg;
+  }
+  
+  .dark .card {
+    @apply bg-slate-800 border-slate-700;
+  }
+  
+  .dark .card:hover {
+    @apply shadow-lg;
   }
   
   /* Labels */
   .label {
     @apply block text-sm font-medium text-secondary-700 mb-2;
   }
+  
+  .dark .label {
+    @apply text-secondary-300;
+  }
+  
+  /* Tables en mode sombre */
+  .dark table {
+    @apply text-white;
+  }
+  
+  .dark table thead {
+    @apply bg-secondary-700;
+  }
+  
+  .dark table thead th {
+    @apply text-secondary-300;
+  }
+  
+  .dark table tbody {
+    @apply bg-secondary-800;
+  }
+  
+  .dark table tbody td {
+    @apply text-secondary-200;
+  }
+  
+  .dark table tbody tr:hover {
+    @apply bg-secondary-700;
+  }
+  
+  /* Badges et statuts */
+  .dark .badge {
+    @apply bg-secondary-700 text-secondary-200;
+  }
+}
+
+/* Mode sombre - Règles globales */
+.dark {
+  color-scheme: dark;
+}
+
+/* Body et #root - Transparent pour voir l'animation */
+body {
+  background-color: transparent !important;
+  color: #1e293b; /* Texte sombre par défaut */
+}
+
+#root {
+  background-color: transparent !important;
+}
+
+.dark body {
+  background-color: #0f172a !important;
+  color: white;
+}
+
+.dark #root {
+  background-color: #0f172a !important;
+}
+
+/* Fond de base pour html - Fond clair pour l'animation subtile */
+html {
+  background-color: #f8fafc !important; /* slate-50 - Fond très clair */
+  min-height: 100%;
+}
+
+.dark html {
+  background-color: #0f172a !important; /* Fond sombre en mode dark */
+}
+
+/* Titres */
+h1, h2, h3, h4, h5, h6 {
+  @apply text-secondary-900;
+  font-weight: 600;
+}
+
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  @apply text-white;
+}
+
+/* Paragraphes et textes en mode sombre */
+.dark p {
+  @apply text-secondary-200;
+}
+
+/* Surcharges de couleurs de texte pour le mode sombre */
+.dark .text-secondary-900 {
+  color: white !important;
+}
+
+.dark .text-secondary-800 {
+  color: rgb(226 232 240) !important;
+}
+
+.dark .text-secondary-700 {
+  color: rgb(203 213 225) !important;
+}
+
+.dark .text-secondary-600 {
+  color: rgb(148 163 184) !important;
+}
+
+.dark .text-secondary-500 {
+  color: rgb(100 116 139) !important;
+}
+
+/* Backgrounds en mode sombre - Bleu nuit profond avec teinte violette */
+.dark .bg-secondary-50 {
+  background-color: rgba(15, 23, 42, 0.3) !important; /* Transparent pour voir l'animation */
+}
+
+.dark .bg-secondary-100 {
+  background-color: rgba(30, 41, 59, 0.3) !important;
+}
+
+.dark .bg-white {
+  background-color: rgba(30, 41, 59, 0.4) !important; /* Bleu nuit avec transparence */
+}
+
+.dark .bg-secondary-900 {
+  background-color: rgba(2, 6, 23, 0.5) !important; /* Fond profond semi-transparent */
+}
+
+/* Bordures en mode sombre avec teinte violette/indigo */
+.dark .border-secondary-200 {
+  border-color: rgba(99, 102, 241, 0.2) !important; /* Indigo teinté */
+}
+
+.dark .border-secondary-300 {
+  border-color: rgba(139, 92, 246, 0.3) !important; /* Violet teinté */
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary-500 via-cyan-500 to-primary-600 bg-clip-text text-transparent;
   }
   
   .shadow-elegant {
     box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .shadow-cyan-glow {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+  
+  .shadow-violet-glow {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+  
+  /* Glassmorphism - Classes utilitaires globales - Verre givré */
+  .glass {
+    @apply bg-white/40 dark:bg-slate-950/40 backdrop-blur-xl border border-white/20;
+  }
+  
+  /* Glassmorphism pour les cartes - Blanc solide pour lisibilité */
+  .glass-card {
+    @apply bg-white rounded-xl shadow-md border border-slate-100 transition-all duration-300;
+  }
+  
+  .glass-card:hover {
+    @apply shadow-lg;
+  }
+  
+  .dark .glass-card {
+    @apply bg-slate-800 border-slate-700;
+  }
+  
+  .dark .glass-card:hover {
+    @apply shadow-lg;
+  }
+  
+  /* Glassmorphism pour les panneaux (sidebar, header) - Blanc solide */
+  .glass-panel {
+    @apply bg-white shadow-sm border-r border-slate-100;
+  }
+  
+  .dark .glass-panel {
+    @apply bg-slate-800 border-slate-700;
+  }
+  
+  /* Glassmorphism pour les tableaux - Blanc solide */
+  .glass-table {
+    @apply bg-white;
+  }
+  
+  .dark .glass-table {
+    @apply bg-slate-800;
+  }
+  
+  /* Titres avec police tech */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+  }
+  
+  /* Garantir la lisibilité du texte sur fond transparent - Accessibilité WCAG AA */
+  .glass-card,
+  .glass-panel,
+  .glass-table {
+    /* Texte avec contraste élevé pour lisibilité */
+  }
+  
+  /* Texte dans les tableaux - contraste garanti */
+  table td,
+  table th {
+    @apply text-secondary-900 dark:text-white;
+    font-weight: 600 !important;
+  }
+  
+  .dark table td,
+  .dark table th {
+    color: white !important;
+    font-weight: 600 !important;
+  }
+  
+  /* Texte dans les cartes - contraste garanti */
+  .card p,
+  .card span,
+  .card div,
+  .card h1,
+  .card h2,
+  .card h3,
+  .glass-card p,
+  .glass-card span,
+  .glass-card div,
+  .glass-card h1,
+  .glass-card h2,
+  .glass-card h3 {
+    @apply text-secondary-900 dark:text-white;
+    font-weight: 600;
+  }
+  
+  .dark .card p,
+  .dark .card span,
+  .dark .card div,
+  .dark .card h1,
+  .dark .card h2,
+  .dark .card h3,
+  .dark .glass-card p,
+  .dark .glass-card span,
+  .dark .glass-card div,
+  .dark .glass-card h1,
+  .dark .glass-card h2,
+  .dark .glass-card h3 {
+    color: white !important;
+    font-weight: 600 !important;
+  }
+  
+  /* Focus visible pour l'accessibilité clavier */
+  .interactive:focus-visible,
+  .btn:focus-visible,
+  .menu-item:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500;
   }
 }
 
@@ -74,6 +434,132 @@
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Optimisation des performances - Utiliser will-change et transform pour GPU acceleration */
+@supports (will-change: transform) {
+  .interactive,
+  .btn,
+  .card-interactive,
+  .menu-item,
+  .table-row-interactive {
+    will-change: transform;
+  }
+  
+  .gradient-layer {
+    will-change: background-position;
+  }
+}
+
+/* Réduire les animations pour les utilisateurs qui préfèrent moins de mouvement */
+@media (prefers-reduced-motion: reduce) {
+  .interactive,
+  .btn,
+  .card-interactive,
+  .menu-item,
+  .table-row-interactive {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .animated-gradient-background {
+    display: none;
+  }
+  
+  .gradient-layer {
+    animation: none !important;
+  }
+}
+
+/* Fond animé avec dégradé - Appliqué sur le body/container global */
+.animated-gradient-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -50;
+  pointer-events: none;
+  overflow: hidden;
+  /* Optimisation GPU */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Dégradé de base - Violet vers Cyan (couleurs fixes de l'app) */
+.gradient-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* Optimisation GPU */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Animation légère avec couleurs pastels visibles sur blanc */
+.gradient-layer-1 {
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.15) 0%,    /* Bleu pastel */
+    rgba(196, 181, 253, 0.12) 25%,   /* Violet pastel */
+    rgba(165, 243, 252, 0.15) 50%,   /* Cyan pastel */
+    rgba(196, 181, 253, 0.12) 75%,   /* Violet pastel */
+    rgba(147, 197, 253, 0.15) 100%   /* Bleu pastel */
+  );
+  background-size: 200% 200%;
+  animation: gradientShift 30s ease-in-out infinite;
+  opacity: 1;
+}
+
+.gradient-layer-2 {
+  background: linear-gradient(
+    45deg,
+    rgba(165, 243, 252, 0.1) 0%,     /* Cyan pastel */
+    rgba(147, 197, 253, 0.12) 25%,   /* Bleu pastel */
+    rgba(196, 181, 253, 0.1) 50%,    /* Violet pastel */
+    rgba(147, 197, 253, 0.12) 75%,   /* Bleu pastel */
+    rgba(165, 243, 252, 0.1) 100%    /* Cyan pastel */
+  );
+  background-size: 200% 200%;
+  animation: gradientShift 35s ease-in-out infinite reverse;
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+
+/* Mode sombre - Couleurs plus vives */
+.dark .gradient-layer-1 {
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.2) 0%,
+    rgba(196, 181, 253, 0.18) 25%,
+    rgba(165, 243, 252, 0.2) 50%,
+    rgba(196, 181, 253, 0.18) 75%,
+    rgba(147, 197, 253, 0.2) 100%
+  );
+  opacity: 1;
+}
+
+.dark .gradient-layer-2 {
+  background: linear-gradient(
+    45deg,
+    rgba(165, 243, 252, 0.15) 0%,
+    rgba(147, 197, 253, 0.18) 25%,
+    rgba(196, 181, 253, 0.15) 50%,
+    rgba(147, 197, 253, 0.18) 75%,
+    rgba(165, 243, 252, 0.15) 100%
+  );
+  opacity: 1;
+}
+
+/* Mode clair - Dégradé IA visible */
+.light .gradient-layer-1 {
+  opacity: 1;
+}
+
+.light .gradient-layer-2 {
+  opacity: 1;
+}
+
 /* Scrollbar personnalisée */
 ::-webkit-scrollbar {
   width: 8px;
@@ -84,10 +570,22 @@
   @apply bg-secondary-100;
 }
 
+.dark ::-webkit-scrollbar-track {
+  @apply bg-secondary-800;
+}
+
 ::-webkit-scrollbar-thumb {
   @apply bg-secondary-300 rounded-full;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-secondary-600 rounded-full;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-secondary-400;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-secondary-500;
 }

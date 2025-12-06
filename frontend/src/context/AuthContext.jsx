@@ -26,7 +26,9 @@ export const AuthProvider = ({ children }) => {
           // Vérifier que le token est toujours valide
           try {
             const response = await authService.getProfile();
-            setUser(response.data.user);
+            if (response.success && response.data && response.data.user) {
+              setUser(response.data.user);
+            }
           } catch (error) {
             // Token invalide, nettoyer le localStorage
             localStorage.removeItem('user');
@@ -48,14 +50,19 @@ export const AuthProvider = ({ children }) => {
   // Connexion
   const login = async (credentials) => {
     try {
+      console.log('🔐 AuthContext: Tentative de connexion pour:', credentials.email);
       const response = await authService.login(credentials);
-      if (response.success) {
+      console.log('📦 AuthContext: Réponse reçue:', response);
+      if (response.success && response.data && response.data.user) {
+        console.log('✅ AuthContext: Utilisateur trouvé:', response.data.user.email);
         setUser(response.data.user);
         return { success: true };
       }
-      return { success: false, message: response.message };
+      console.warn('⚠️ AuthContext: Réponse invalide:', response);
+      return { success: false, message: response.message || 'Erreur lors de la connexion' };
     } catch (error) {
-      const message = error.response?.data?.message || 'Erreur lors de la connexion';
+      console.error('❌ AuthContext: Erreur de connexion:', error);
+      const message = error.response?.data?.message || error.message || 'Erreur lors de la connexion';
       return { success: false, message };
     }
   };
@@ -64,13 +71,21 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await authService.register(userData);
-      if (response.success) {
-        setUser(response.data.user);
-        return { success: true };
+      if (response.success && response.data) {
+        const { user } = response.data;
+        
+        // Inscription avec connexion automatique (tokens toujours présents)
+        setUser(user);
+        console.log('✅ Inscription réussie et utilisateur connecté:', user.email);
+        return { 
+          success: true,
+          message: response.message || 'Inscription réussie. Bienvenue sur JurisFlow !'
+        };
       }
-      return { success: false, message: response.message };
+      return { success: false, message: response.message || 'Erreur lors de l\'inscription' };
     } catch (error) {
-      const message = error.response?.data?.message || 'Erreur lors de l\'inscription';
+      console.error('Erreur d\'inscription:', error);
+      const message = error.response?.data?.message || error.message || 'Erreur lors de l\'inscription';
       const errors = error.response?.data?.errors;
       return { success: false, message, errors };
     }

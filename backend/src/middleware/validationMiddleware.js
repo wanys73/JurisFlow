@@ -38,8 +38,7 @@ export const registerValidation = [
   
   body('password')
     .notEmpty().withMessage('Le mot de passe est requis')
-    .isLength({ min: 8 }).withMessage('Le mot de passe doit contenir au moins 8 caractères')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'),
+    .isLength({ min: 6 }).withMessage('Le mot de passe doit contenir au moins 6 caractères'),
   
   body('role')
     .optional()
@@ -49,6 +48,17 @@ export const registerValidation = [
     .if(body('role').equals('admin'))
     .notEmpty().withMessage('Le nom du cabinet est requis pour un compte administrateur')
     .isLength({ min: 2, max: 100 }).withMessage('Le nom du cabinet doit contenir entre 2 et 100 caractères'),
+  
+  // Adresse et téléphone sont optionnels
+  body('cabinet.adresse')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('L\'adresse ne doit pas dépasser 500 caractères'),
+  
+  body('cabinet.telephone')
+    .optional()
+    .trim()
+    .isLength({ max: 20 }).withMessage('Le téléphone ne doit pas dépasser 20 caractères'),
   
   validate
 ];

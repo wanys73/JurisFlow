@@ -19,15 +19,24 @@ model User {
   password String
   role     Role   @default(COLLABORATEUR)
 
-  // Informations du cabinet (JSON pour flexibilité)
-  cabinetNom       String?
-  cabinetLogo      String?
-  cabinetAdresse   String?
-  cabinetTelephone String?
-  cabinetSiren     String?
+  // Informations du cabinet (détails complets)
+  cabinetNom             String?
+  cabinetAdresse         String?  @db.Text
+  cabinetSiret           String?
+  cabinetTvaIntracom     String?
+  cabinetEmailContact    String?
+  cabinetTelephoneContact String?
+  cabinetLogoUrl         String?
+  cabinetSignatureUrl    String?
+  cabinetKbisUrl         String?
+  cabinetMentionsLegales String?  @db.Text
 
   isActive      Boolean @default(true)
   emailVerified Boolean @default(false)
+
+  // Préférences utilisateur
+  themePreference String? @default("clair") // 'clair', 'sombre', 'systeme'
+  enableAnimations Boolean @default(true)
 
   // Tokens
   resetPasswordToken  String?
@@ -52,6 +61,7 @@ model User {
   evenementsCabinet   Evenement[]       @relation("EvenementCabinet")
   notes               DossierNote[]
   timelineEntries     DossierTimeline[]
+  notifications       Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -341,4 +351,23 @@ enum TypeEvenement {
   RENDEZ_VOUS
   ECHEANCE
   TACHE
+}
+
+// Modèle Notification (Notifications in-app)
+model Notification {
+  id        String   @id @default(cuid())
+  titre     String
+  message   String   @db.Text
+  lu        Boolean  @default(false)
+  dateEnvoi DateTime @default(now())
+  
+  utilisateurId String
+  utilisateur   User   @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([utilisateurId, lu])
+  @@index([dateEnvoi])
+  @@map("notifications")
 }

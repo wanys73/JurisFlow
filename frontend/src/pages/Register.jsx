@@ -59,8 +59,8 @@ const Register = () => {
       return;
     }
   
-    if (formData.password.length < 8) {
-      setError('Le mot de passe doit contenir au moins 8 caractères');
+    if (formData.password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères');
       setLoading(false);
       return;
     }
@@ -75,9 +75,17 @@ const Register = () => {
     const { confirmPassword, ...dataToSend } = formData;
   
     try {
+      if (!register) {
+        setError('Erreur: fonction d\'inscription non disponible. Veuillez recharger la page.');
+        setLoading(false);
+        return;
+      }
       const result = await register(dataToSend);
   
       if (result.success) {
+        // Inscription réussie avec connexion automatique
+        setError(''); // Effacer les erreurs précédentes
+        // Rediriger vers le dashboard
         navigate('/dashboard');
       } else {
         // Afficher le message d'erreur
@@ -187,7 +195,7 @@ const Register = () => {
                   autoComplete="new-password"
                 />
                 <p className="text-xs text-secondary-500 mt-1">
-                  Min. 8 caractères, 1 majuscule, 1 chiffre
+                  Minimum 6 caractères
                 </p>
               </div>
 

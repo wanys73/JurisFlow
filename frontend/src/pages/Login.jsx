@@ -1,17 +1,26 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Scale } from 'lucide-react';
+import { Scale, CheckCircle } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Vérifier si on vient d'une confirmation d'email
+  useEffect(() => {
+    if (searchParams.get('confirmed') === 'true') {
+      setSuccess('Votre compte a été activé avec succès ! Vous pouvez maintenant vous connecter.');
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setFormData({
@@ -19,6 +28,7 @@ const Login = () => {
       [e.target.name]: e.target.value,
     });
     setError('');
+    setSuccess('');
   };
 
   const handleSubmit = async (e) => {
@@ -91,6 +101,14 @@ const Login = () => {
                 autoComplete="current-password"
               />
             </div>
+
+            {/* Message de succès */}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                {success}
+              </div>
+            )}
 
             {/* Erreur */}
             {error && (

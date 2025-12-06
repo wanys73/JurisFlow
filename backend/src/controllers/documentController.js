@@ -130,6 +130,30 @@ export const uploadDocuments = async (req, res) => {
       }
     });
     
+    // Créer une notification (secondaire -> cloche uniquement)
+    try {
+      const { createSecondaryNotification, NOTIFICATION_TYPES } = await import('../services/notificationService.js');
+      
+      // Récupérer le responsable du dossier pour la notification
+      const dossierWithResponsable = await prisma.dossier.findUnique({
+        where: { id: dossierId },
+        select: { responsableId: true }
+      });
+      
+      const userIdToNotify = dossierWithResponsable?.responsableId || req.user.userId;
+      
+      await createSecondaryNotification(
+        userIdToNotify,
+        NOTIFICATION_TYPES.DOCUMENT,
+        '📄 Nouveau document ajouté',
+        `${documents.length} document(s) ${documents.length > 1 ? 'ont été ajoutés' : 'a été ajouté'} au dossier "${dossier.nom}".`,
+        documents[0]?.id || null,
+        'document'
+      );
+    } catch (notificationError) {
+      console.error('Erreur lors de la création de la notification (non bloquant):', notificationError);
+    }
+    
     res.status(201).json({
       success: true,
       message: `${documents.length} document(s) uploadé(s) avec succès`,

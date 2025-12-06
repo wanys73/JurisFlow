@@ -51,15 +51,25 @@ const Documents = () => {
   const handleDownload = async (item) => {
     try {
       if (item.type === 'Document') {
-        // Pour les documents, utiliser l'URL S3
-        if (item.url) {
-          window.open(item.url, '_blank');
-        } else {
-          // Sinon, utiliser l'endpoint de téléchargement
-          const response = await documentService.getDownloadUrl(item.id);
-          if (response.data.url) {
-            window.open(response.data.url, '_blank');
-          }
+        // Pour les documents, télécharger via l'endpoint de téléchargement
+        const response = await documentService.getDownloadUrl(item.id);
+        
+        if (response.data.url) {
+          // Télécharger le fichier via fetch pour éviter les pop-up blockers
+          const fileResponse = await fetch(response.data.url);
+          const blob = await fileResponse.blob();
+          
+          // Créer un lien de téléchargement avec le blob
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = item.nom || 'document';
+          document.body.appendChild(link);
+          link.click();
+          
+          // Nettoyer
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
         }
       } else if (item.type === 'Facture') {
         // Pour les factures, télécharger le PDF
@@ -68,7 +78,7 @@ const Documents = () => {
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `${item.nom}.pdf`;
+        link.download = `${item.nom || 'facture'}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

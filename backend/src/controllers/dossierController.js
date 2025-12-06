@@ -1,5 +1,55 @@
 import { prisma } from '../lib/prisma.js';
 
+// Helper pour normaliser les statuts de dossier (mapping frontend -> backend)
+const normalizeDossierStatut = (statut) => {
+  if (!statut) return null;
+  
+  // Nettoyer le statut (trim, décoder URL si nécessaire)
+  const cleaned = String(statut).trim();
+  
+  // Mapping explicite des valeurs du frontend vers les valeurs de l'enum Prisma
+  // Le frontend envoie : "Ouvert", "Fermé", "En attente", "Tous les statuts" ou ""
+  const statutMap = {
+    // Valeurs exactes du frontend (avec accents) - cas le plus courant
+    'Ouvert': 'OUVERT',
+    'Fermé': 'FERME',
+    'En attente': 'EN_ATTENTE',
+    // Variantes avec casse différente
+    'OUVERT': 'OUVERT',
+    'FERME': 'FERME',
+    'FERMÉ': 'FERME',
+    'EN_ATTENTE': 'EN_ATTENTE',
+    'EN ATTENTE': 'EN_ATTENTE',
+    'ATTENTE': 'EN_ATTENTE',
+    // Variantes minuscules
+    'ouvert': 'OUVERT',
+    'fermé': 'FERME',
+    'ferme': 'FERME',
+    'en attente': 'EN_ATTENTE'
+  };
+  
+  // Vérifier d'abord le mapping direct (sans normalisation)
+  if (statutMap[cleaned]) {
+    return statutMap[cleaned];
+  }
+  
+  // Si pas trouvé, normaliser puis chercher
+  const normalized = cleaned
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Enlever les accents
+    .replace(/\s+/g, '_') // Remplacer espaces par underscore
+    .trim();
+  
+  // Vérifier dans le map après normalisation
+  if (statutMap[normalized]) {
+    return statutMap[normalized];
+  }
+  
+  // Si toujours pas trouvé, retourner la version normalisée
+  return normalized;
+};
+
 // Helper pour convertir Dossier Prisma en format public
 const dossierToPublicJSON = (dossier) => {
   // Si on a une relation client, l'utiliser, sinon utiliser les anciens champs
@@ -150,7 +200,7 @@ export const createDossier = async (req, res) => {
       data: {
         nom,
         description,
-        statut: statut ? statut.toUpperCase().replace(' ', '_').replace('É', 'E') : 'OUVERT',
+        statut: statut ? normalizeDossierStatut(statut) : 'OUVERT',
         responsableId: responsable || req.user.userId,
         cabinetId,
         clientId: clientId || null,
@@ -247,8 +297,38 @@ export const getDossiers = async (req, res) => {
       isArchived: includeArchived === 'true' ? undefined : false
     };
     
-    if (statut) {
-      where.statut = statut.toUpperCase().replace(' ', '_').replace('É', 'E');
+    // Filtrer par statut uniquement si fourni et différent de "Tous" ou vide
+    if (statut && statut.trim() !== '' && statut !== 'Tous' && statut !== 'Tous les statuts') {
+      try {
+        // Décoder l'URL si nécessaire (pour gérer les caractères encodés)
+        let decodedStatut = statut;
+        try {
+          decodedStatut = decodeURIComponent(statut);
+        } catch (decodeError) {
+          // Si le décodage échoue, utiliser la valeur originale
+          decodedStatut = statut;
+        }
+        console.log(`[DEBUG] Statut dossier reçu du frontend: "${statut}" (décodé: "${decodedStatut}")`);
+        
+        const normalizedStatut = normalizeDossierStatut(decodedStatut);
+        console.log(`[DEBUG] Statut dossier normalisé: "${normalizedStatut}"`);
+        
+        // Vérifier que le statut normalisé est valide
+        const validStatuts = ['OUVERT', 'FERME', 'EN_ATTENTE'];
+        if (validStatuts.includes(normalizedStatut)) {
+          where.statut = normalizedStatut;
+          console.log(`[DEBUG] Filtre dossier appliqué: where.statut = "${normalizedStatut}"`);
+        } else {
+          console.warn(`[WARN] Statut de dossier invalide reçu: "${statut}" (décodé: "${decodedStatut}", normalisé: "${normalizedStatut}")`);
+          // Ne pas filtrer par statut si invalide, mais ne pas faire planter la requête
+        }
+      } catch (error) {
+        console.error('[ERROR] Erreur lors de la normalisation du statut de dossier:', error);
+        console.error('[ERROR] Stack:', error.stack);
+        // Ne pas filtrer par statut en cas d'erreur
+      }
+    } else {
+      console.log(`[DEBUG] Pas de filtre de statut dossier (statut: "${statut}")`);
     }
     
     if (responsable) {
@@ -494,8 +574,10 @@ export const updateDossier = async (req, res) => {
 
     // Détecter les changements importants
     if (req.body.statut) {
-      const nouveauStatut = req.body.statut.toUpperCase().replace(' ', '_').replace('É', 'E');
-      if (nouveauStatut !== dossier.statut) {
+      const nouveauStatut = normalizeDossierStatut(req.body.statut);
+      // Vérifier que le statut est valide
+      const validStatuts = ['OUVERT', 'FERME', 'EN_ATTENTE'];
+      if (validStatuts.includes(nouveauStatut) && nouveauStatut !== dossier.statut) {
         updateData.statut = nouveauStatut;
         // Convertir pour l'affichage dans la timeline
         const statutDisplay = {
@@ -541,7 +623,11 @@ export const updateDossier = async (req, res) => {
     Object.keys(req.body).forEach(key => {
       if (allowedUpdates.includes(key)) {
         if (key === 'statut' && !updateData.statut) {
-          updateData.statut = req.body[key].toUpperCase().replace(' ', '_').replace('É', 'E');
+          const normalizedStatut = normalizeDossierStatut(req.body[key]);
+          const validStatuts = ['OUVERT', 'FERME', 'EN_ATTENTE'];
+          if (validStatuts.includes(normalizedStatut)) {
+            updateData.statut = normalizedStatut;
+          }
         } else if (key === 'responsable' && !updateData.responsableId) {
           updateData.responsableId = req.body[key];
         } else if (key.startsWith('client') && key !== 'clientId') {

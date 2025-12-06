@@ -7,12 +7,34 @@ export const notFound = (req, res, next) => {
 
 // Middleware pour gérer toutes les erreurs
 export const errorHandler = (err, req, res, next) => {
+  // Si la réponse a déjà été envoyée, ne rien faire
+  if (res.headersSent) {
+    return next(err);
+  }
+  
   // Statut de l'erreur (si déjà défini, sinon 500)
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   
+  // Si l'erreur a déjà été formatée (avec details), la renvoyer telle quelle
+  if (err.details || err.error) {
+    return res.status(statusCode).json({
+      success: false,
+      message: err.message || 'Erreur serveur',
+      error: err.error || err.message,
+      details: err.details
+    });
+  }
+  
+  // Sinon, formater l'erreur standard
   res.status(statusCode).json({
     success: false,
-    message: err.message,
+    message: err.message || 'Erreur serveur',
+    error: err.message,
+    details: {
+      code: err.code,
+      name: err.name,
+      message: err.message
+    },
     stack: process.env.NODE_ENV === 'production' ? null : err.stack,
   });
 };

@@ -5,7 +5,72 @@ const getCabinetId = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId }
   });
+  
+  if (!user) {
+    throw new Error('Utilisateur non trouvé');
+  }
+  
+  // Si admin, son ID est le cabinetId
+  // Si collaborateur, on cherche l'admin du cabinet (pour l'instant, on utilise son ID)
   return user.role === 'ADMIN' ? user.id : user.id;
+};
+
+// Helper pour normaliser les statuts de facture (mapping frontend -> backend)
+// Mapping robuste et explicite des valeurs du frontend vers les valeurs de l'enum Prisma
+const statusMapping = {
+  // Valeurs exactes du frontend (avec accents) - cas le plus courant
+  'Envoyée': 'ENVOYEE',
+  'Payée': 'PAYEE',
+  'En retard': 'EN_RETARD',
+  // Variantes avec casse différente
+  'En Retard': 'EN_RETARD',
+  'EN RETARD': 'EN_RETARD',
+  // Variantes sans accents
+  'Envoyee': 'ENVOYEE',
+  'Payee': 'PAYEE',
+  'En Retard': 'EN_RETARD',
+  // Valeurs déjà normalisées
+  'ENVOYEE': 'ENVOYEE',
+  'PAYEE': 'PAYEE',
+  'EN_RETARD': 'EN_RETARD',
+  // Variantes avec accents en majuscules
+  'ENVOYÉE': 'ENVOYEE',
+  'PAYÉE': 'PAYEE',
+  // Autres variantes possibles
+  'RETARD': 'EN_RETARD',
+  'ENVOYÉ': 'ENVOYEE',
+  'PAYÉ': 'PAYEE',
+  'envoyée': 'ENVOYEE',
+  'payée': 'PAYEE',
+  'en retard': 'EN_RETARD'
+};
+
+const normalizeFactureStatut = (statut) => {
+  if (!statut) return null;
+  
+  // Nettoyer le statut (trim)
+  const cleaned = String(statut).trim();
+  
+  // Vérifier d'abord le mapping direct (sans normalisation)
+  if (statusMapping[cleaned]) {
+    return statusMapping[cleaned];
+  }
+  
+  // Si pas trouvé, normaliser puis chercher
+  const normalized = cleaned
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Enlever les accents
+    .replace(/\s+/g, '_') // Remplacer espaces par underscore
+    .trim();
+  
+  // Vérifier dans le map après normalisation
+  if (statusMapping[normalized]) {
+    return statusMapping[normalized];
+  }
+  
+  // Si toujours pas trouvé, retourner la version normalisée
+  return normalized;
 };
 
 // Helper pour générer un numéro de facture unique
@@ -121,7 +186,7 @@ export const createFacture = async (req, res) => {
         totalHT,
         tva: req.body.tva || 20,
         totalTTC,
-        statut: req.body.statut ? req.body.statut.toUpperCase().replace(/ /g, '_').replace('É', 'E') : 'ENVOYEE',
+        statut: req.body.statut ? normalizeFactureStatut(req.body.statut) : 'ENVOYEE',
         dateEcheance: new Date(req.body.dateEcheance),
         notes: req.body.notes || null
       },
@@ -186,18 +251,54 @@ export const createFacture = async (req, res) => {
 // @route   GET /api/factures
 // @access  Private
 export const getFactures = async (req, res) => {
+  // LOG IMMÉDIAT - Si vous ne voyez pas ça, la fonction n'est pas appelée
+  console.log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
+  console.log('🔵 [FACTURES] FONCTION APPELÉE !');
+  console.log('🔵 [FACTURES] userId:', req.user?.userId);
+  console.log('🔵 [FACTURES] Query:', req.query);
+  console.log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
+  
   try {
     const cabinetId = await getCabinetId(req.user.userId);
+    console.log('🔵 [FACTURES] cabinetId:', cabinetId);
 
     // Filtres
-    const { statut, dossierId, dateDebut, dateFin } = req.query;
+    let { statut, dossierId, dateDebut, dateFin, search } = req.query;
+    
+    console.log('🔵 [FACTURES] Statut brut reçu:', statut);
+    console.log('🔵 [FACTURES] Type de statut:', typeof statut);
+    
+    // Traitement du statut - SIMPLIFIÉ et ROBUSTE
+    let normalizedStatut = undefined;
+    if (statut && typeof statut === 'string' && statut.trim() !== '') {
+      // Express décode déjà les paramètres URL automatiquement
+      let decodedStatut = statut.trim();
+      
+      // Mapping direct et simple
+      if (decodedStatut === 'Envoyée' || decodedStatut === 'Envoyee' || decodedStatut === 'Envoyé') {
+        normalizedStatut = 'ENVOYEE';
+      } else if (decodedStatut === 'Payée' || decodedStatut === 'Payee' || decodedStatut === 'Payé') {
+        normalizedStatut = 'PAYEE';
+      } else if (decodedStatut === 'En retard' || decodedStatut === 'En Retard') {
+        normalizedStatut = 'EN_RETARD';
+      } else if (decodedStatut === 'ENVOYEE' || decodedStatut === 'PAYEE' || decodedStatut === 'EN_RETARD') {
+        normalizedStatut = decodedStatut;
+      }
+      
+      console.log('🔵 [FACTURES] Statut reçu:', decodedStatut, '-> Normalisé:', normalizedStatut);
+    }
+    
     const where = {
       cabinetId,
       isArchived: false
     };
 
-    if (statut) {
-      where.statut = statut.toUpperCase().replace(' ', '_');
+    // Appliquer le filtre de statut si valide
+    if (normalizedStatut) {
+      where.statut = normalizedStatut;
+      console.log('🔵 [FACTURES] ✅ Filtre appliqué:', where.statut);
+    } else {
+      console.log('🔵 [FACTURES] Pas de filtre de statut appliqué');
     }
 
     if (dossierId) {
@@ -214,45 +315,143 @@ export const getFactures = async (req, res) => {
       }
     }
 
+    // Filtre par recherche textuelle (si fourni)
+    // Note: La recherche dans les relations (dossier, client) est gérée côté frontend
+    if (search && search.trim() !== '') {
+      try {
+        where.numeroFacture = {
+          contains: search.trim(),
+          mode: 'insensitive'
+        };
+      } catch (searchError) {
+        console.warn('[WARN] Erreur lors de l\'application du filtre de recherche:', searchError);
+        // Ignorer le filtre de recherche en cas d'erreur
+      }
+    }
+
     // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
     // Récupérer les factures
-    const [factures, total] = await Promise.all([
-      prisma.facture.findMany({
-        where,
-        include: {
-          dossier: {
-            select: {
-              id: true,
-              nom: true,
-              clientNom: true,
-              clientPrenom: true
-            }
+    console.log('🔵 [FACTURES] Where object:', JSON.stringify(where, null, 2));
+    
+    let factures, total;
+    try {
+      console.log('🔵 [FACTURES] Début de la requête Prisma...');
+      
+      [factures, total] = await Promise.all([
+        prisma.facture.findMany({
+          where,
+          include: {
+            dossier: {
+              select: {
+                id: true,
+                nom: true,
+                clientNom: true,
+                clientPrenom: true
+              }
+            },
+            cabinet: {
+              select: {
+                id: true,
+                nom: true,
+                prenom: true,
+                email: true
+              }
+            },
+            lignes: true
           },
-          cabinet: {
-            select: {
-              id: true,
-              nom: true,
-              prenom: true,
-              email: true
-            }
-          },
-          lignes: true
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      prisma.facture.count({ where })
-    ]);
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.facture.count({ where })
+      ]);
+      
+      console.log('🔵 [FACTURES] ✅ Succès:', factures.length, 'factures sur', total);
+    } catch (prismaError) {
+      console.error('🔴 [FACTURES] ❌ ERREUR PRISMA:');
+      console.error('🔴 [FACTURES] Code:', prismaError.code);
+      console.error('🔴 [FACTURES] Message:', prismaError.message);
+      console.error('🔴 [FACTURES] Name:', prismaError.name);
+      console.error('🔴 [FACTURES] Where:', JSON.stringify(where, null, 2));
+      
+      // Si l'erreur vient du statut, essayer sans
+      if (where.statut) {
+        console.log('🔵 [FACTURES] Tentative SANS filtre de statut...');
+        const whereWithoutStatut = { ...where };
+        delete whereWithoutStatut.statut;
+        
+        try {
+          [factures, total] = await Promise.all([
+            prisma.facture.findMany({
+              where: whereWithoutStatut,
+              include: {
+                dossier: {
+                  select: {
+                    id: true,
+                    nom: true,
+                    clientNom: true,
+                    clientPrenom: true
+                  }
+                },
+                cabinet: {
+                  select: {
+                    id: true,
+                    nom: true,
+                    prenom: true,
+                    email: true
+                  }
+                },
+                lignes: true
+              },
+              orderBy: { createdAt: 'desc' },
+              skip,
+              take: limit
+            }),
+            prisma.facture.count({ where: whereWithoutStatut })
+          ]);
+          console.log('🔵 [FACTURES] ✅ Succès sans filtre:', factures.length, 'factures');
+        } catch (retryError) {
+          console.error('🔴 [FACTURES] ❌ Erreur même sans filtre:', retryError.message);
+          throw prismaError;
+        }
+      } else {
+        throw prismaError;
+      }
+    }
+
+    // Transformer les factures en JSON public
+    let facturesJSON;
+    try {
+      facturesJSON = factures.map(f => {
+        try {
+          return factureToPublicJSON(f);
+        } catch (mapError) {
+          console.error('[ERROR] Erreur lors de la transformation d\'une facture:', mapError);
+          console.error('[ERROR] Facture problématique:', f);
+          // Retourner une version minimale en cas d'erreur
+          return {
+            id: f.id,
+            numeroFacture: f.numeroFacture || '',
+            totalTTC: f.totalTTC || 0,
+            statut: f.statut || 'ENVOYEE',
+            dateEmission: f.dateEmission?.toISOString() || new Date().toISOString(),
+            dateEcheance: f.dateEcheance?.toISOString() || new Date().toISOString()
+          };
+        }
+      });
+    } catch (transformError) {
+      console.error('[ERROR] Erreur lors de la transformation des factures:', transformError);
+      throw transformError;
+    }
 
     res.status(200).json({
       success: true,
       data: {
-        factures: factures.map(f => factureToPublicJSON(f)),
+        factures: facturesJSON,
         pagination: {
           page,
           limit,
@@ -263,10 +462,25 @@ export const getFactures = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur lors de la récupération des factures:', error);
-    res.status(500).json({
+    console.error('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+    console.error('🔴 [FACTURES] ❌ ERREUR CAPTURÉE');
+    console.error('🔴 [FACTURES] Message:', error.message);
+    console.error('🔴 [FACTURES] Code:', error.code);
+    console.error('🔴 [FACTURES] Name:', error.name);
+    console.error('🔴 [FACTURES] Stack:', error.stack);
+    console.error('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
+    
+    // Envoyer DIRECTEMENT la réponse avec TOUS les détails
+    return res.status(500).json({
       success: false,
-      message: 'Erreur lors de la récupération des factures'
+      message: 'Erreur lors de la récupération des factures',
+      error: error.message || 'Erreur inconnue',
+      details: {
+        code: error.code || 'NO_CODE',
+        name: error.name || 'Error',
+        message: error.message || 'Erreur inconnue',
+        stack: error.stack || 'Pas de stack'
+      }
     });
   }
 };
@@ -402,16 +616,20 @@ export const updateFacture = async (req, res) => {
     }
 
     if (req.body.statut) {
-      updateData.statut = req.body.statut.toUpperCase().replace(/ /g, '_').replace('É', 'E');
-      
-      // Si le statut passe à "Payée", enregistrer la date de paiement
-      if (updateData.statut === 'PAYEE' && !facture.datePaiement) {
-        updateData.datePaiement = new Date();
-      }
-      
-      // Si le statut n'est plus "Payée", supprimer la date de paiement
-      if (updateData.statut !== 'PAYEE' && facture.datePaiement) {
-        updateData.datePaiement = null;
+      const normalizedStatut = normalizeFactureStatut(req.body.statut);
+      const validStatuts = ['ENVOYEE', 'PAYEE', 'EN_RETARD'];
+      if (validStatuts.includes(normalizedStatut)) {
+        updateData.statut = normalizedStatut;
+        
+        // Si le statut passe à "Payée", enregistrer la date de paiement
+        if (normalizedStatut === 'PAYEE' && !facture.datePaiement) {
+          updateData.datePaiement = new Date();
+        }
+        
+        // Si le statut n'est plus "Payée", supprimer la date de paiement
+        if (normalizedStatut !== 'PAYEE' && facture.datePaiement) {
+          updateData.datePaiement = null;
+        }
       }
     }
 
@@ -450,7 +668,7 @@ export const updateFacture = async (req, res) => {
 
     // Mettre à jour la timeline du dossier si le statut change et que le dossier existe
     if (req.body.statut && facture.dossierId) {
-      const nouveauStatutFormate = req.body.statut.toUpperCase().replace(/ /g, '_').replace('É', 'E');
+      const nouveauStatutFormate = normalizeFactureStatut(req.body.statut);
       if (nouveauStatutFormate !== ancienStatut) {
         try {
           await prisma.dossierTimeline.create({
@@ -465,6 +683,50 @@ export const updateFacture = async (req, res) => {
         } catch (timelineError) {
           // Ne pas bloquer la mise à jour de la facture si la timeline échoue
           console.error('Erreur lors de la création de la timeline:', timelineError);
+        }
+      }
+    }
+
+    // Créer une notification si la facture passe à "Payée" (critique/positif -> Email + Cloche)
+    if (req.body.statut) {
+      const nouveauStatutFormate = normalizeFactureStatut(req.body.statut);
+      if (ancienStatut !== 'PAYEE' && nouveauStatutFormate === 'PAYEE') {
+        try {
+          const { createCriticalNotification, NOTIFICATION_TYPES } = await import('../services/notificationService.js');
+          
+          const clientNom = factureUpdated.dossier 
+            ? `${factureUpdated.dossier.clientPrenom || ''} ${factureUpdated.dossier.clientNom || ''}`.trim() 
+            : 'Client inconnu';
+          
+          const titre = '💶 Paiement reçu';
+          const message = `La facture ${facture.numeroFacture} (${clientNom}) a été marquée comme payée. Montant : ${factureUpdated.totalTTC.toFixed(2)} €.`;
+          
+          const emailSubject = `Paiement reçu : Facture ${facture.numeroFacture}`;
+          const emailBody = `
+            <h2>Paiement reçu</h2>
+            <p>Bonjour ${factureUpdated.cabinet.prenom},</p>
+            <p>La facture suivante a été marquée comme <strong>payée</strong> :</p>
+            <ul>
+              <li><strong>Numéro :</strong> ${facture.numeroFacture}</li>
+              <li><strong>Client :</strong> ${clientNom}</li>
+              <li><strong>Montant TTC :</strong> ${factureUpdated.totalTTC.toFixed(2)} €</li>
+              <li><strong>Date de paiement :</strong> ${new Date().toLocaleDateString('fr-FR')}</li>
+            </ul>
+            <p>Merci pour votre suivi.</p>
+          `;
+          
+          await createCriticalNotification(
+            factureUpdated.cabinet.id,
+            NOTIFICATION_TYPES.FACTURE,
+            titre,
+            message,
+            emailSubject,
+            emailBody,
+            factureUpdated.id,
+            'facture'
+          );
+        } catch (notificationError) {
+          console.error('Erreur lors de la création de la notification (non bloquant):', notificationError);
         }
       }
     }
@@ -612,6 +874,45 @@ export const marquerPayee = async (req, res) => {
         // Ne pas bloquer la mise à jour de la facture si la timeline échoue
         console.error('Erreur lors de la création de la timeline:', timelineError);
       }
+    }
+
+    // Créer une notification (critique/positif -> Email + Cloche)
+    try {
+      const { createCriticalNotification, NOTIFICATION_TYPES } = await import('../services/notificationService.js');
+      
+      const clientNom = factureUpdated.dossier 
+        ? `${factureUpdated.dossier.clientPrenom || ''} ${factureUpdated.dossier.clientNom || ''}`.trim() 
+        : 'Client inconnu';
+      
+      const titre = '💶 Paiement reçu';
+      const message = `La facture ${facture.numeroFacture} (${clientNom}) a été marquée comme payée. Montant : ${factureUpdated.totalTTC.toFixed(2)} €.`;
+      
+      const emailSubject = `Paiement reçu : Facture ${facture.numeroFacture}`;
+      const emailBody = `
+        <h2>Paiement reçu</h2>
+        <p>Bonjour ${factureUpdated.cabinet.prenom},</p>
+        <p>La facture suivante a été marquée comme <strong>payée</strong> :</p>
+        <ul>
+          <li><strong>Numéro :</strong> ${facture.numeroFacture}</li>
+          <li><strong>Client :</strong> ${clientNom}</li>
+          <li><strong>Montant TTC :</strong> ${factureUpdated.totalTTC.toFixed(2)} €</li>
+          <li><strong>Date de paiement :</strong> ${new Date().toLocaleDateString('fr-FR')}</li>
+        </ul>
+        <p>Merci pour votre suivi.</p>
+      `;
+      
+      await createCriticalNotification(
+        factureUpdated.cabinet.id,
+        NOTIFICATION_TYPES.FACTURE,
+        titre,
+        message,
+        emailSubject,
+        emailBody,
+        factureUpdated.id,
+        'facture'
+      );
+    } catch (notificationError) {
+      console.error('Erreur lors de la création de la notification (non bloquant):', notificationError);
     }
 
     res.status(200).json({

@@ -1,10 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
+import { CabinetSettingsProvider } from './context/CabinetSettingsContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ConfirmEmail from './pages/ConfirmEmail';
 import Dashboard from './pages/Dashboard';
 import Dossiers from './pages/Dossiers';
 import DossierDetail from './pages/DossierDetail';
@@ -14,6 +17,8 @@ import Clients from './pages/Clients';
 import Documents from './pages/Documents';
 import Agenda from './pages/Agenda';
 import Statistiques from './pages/Statistiques';
+import Parametres from './pages/Parametres';
+import IA_Studio from './pages/IA_Studio';
 
 // Composant pour protéger les routes
 const ProtectedRoute = ({ children }) => {
@@ -56,9 +61,11 @@ const PublicRoute = ({ children }) => {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <Routes>
-          {/* Routes publiques */}
+      <ThemeProvider>
+        <AuthProvider>
+          <CabinetSettingsProvider>
+            <Routes>
+            {/* Routes publiques */}
           <Route 
             path="/login" 
             element={
@@ -74,6 +81,10 @@ function App() {
                 <Register />
               </PublicRoute>
             } 
+          />
+          <Route 
+            path="/auth/confirm/:token" 
+            element={<ConfirmEmail />} 
           />
           
           {/* Routes protégées */}
@@ -134,6 +145,14 @@ function App() {
             } 
           />
           <Route 
+            path="/ia-studio" 
+            element={
+              <ProtectedRoute>
+                <IA_Studio />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/agenda" 
             element={
               <ProtectedRoute>
@@ -146,6 +165,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <Statistiques />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/parametres" 
+            element={
+              <ProtectedRoute>
+                <Parametres />
               </ProtectedRoute>
             } 
           />
@@ -165,8 +193,10 @@ function App() {
               </div>
             } 
           />
-        </Routes>
-      </AuthProvider>
+            </Routes>
+          </CabinetSettingsProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </Router>
   );
 }

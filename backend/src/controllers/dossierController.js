@@ -857,3 +857,83 @@ export const addNote = async (req, res) => {
     });
   }
 };
+
+// =============================================================================
+// KILLER FEATURE : Dossiers Urgents (Délais de Prescription / Échéances)
+// =============================================================================
+
+/**
+ * @desc    Récupérer les dossiers urgents (échéance < 30 jours)
+ * @route   GET /api/dossiers/urgent
+ * @access  Private
+ */
+export const getUrgentDossiers = async (req, res) => {
+  try {
+    const cabinetId = await getCabinetId(req.user.userId);
+
+    const today = new Date();
+    const in30Days = new Date();
+    in30Days.setDate(today.getDate() + 30);
+
+    const urgentDossiers = await prisma.dossier.findMany({
+      where: {
+        cabinetId,
+        isArchived: false,
+        dateEcheance: {
+          lte: in30Days, // Inférieur ou égal à 30 jours
+          gte: today     // Pas encore passé
+        }
+      },
+      include: {
+        client: {
+          select: {
+            nom: true,
+            prenom: true
+          }
+        }
+      },
+      orderBy: {
+        dateEcheance: 'asc' // Les plus urgents en premier
+      }
+    });
+
+    // Calculer les jours restants pour chaque dossier
+    const dossiersWithUrgency = urgentDossiers.map(dossier => {
+      const daysRemaining = Math.ceil(
+        (new Date(dossier.dateEcheance) - today) / (1000 * 60 * 60 * 24)
+      );
+
+      let urgencyLevel = 'MEDIUM';
+      if (daysRemaining <= 7) urgencyLevel = 'CRITICAL';
+      else if (daysRemaining <= 15) urgencyLevel = 'HIGH';
+
+      return {
+        id: dossier.id,
+        nom: dossier.nom,
+        numeroAffaire: dossier.numeroAffaire,
+        client: dossier.client,
+        dateEcheance: dossier.dateEcheance,
+        daysRemaining,
+        urgencyLevel,
+        typeAffaire: dossier.typeAffaire,
+        juridiction: dossier.juridiction
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        urgentDossiers: dossiersWithUrgency,
+        total: dossiersWithUrgency.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération dossiers urgents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des dossiers urgents',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};

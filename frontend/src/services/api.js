@@ -206,6 +206,12 @@ export const dossierService = {
   addNote: async (id, contenu) => {
     const response = await api.post(`/dossiers/${id}/notes`, { contenu });
     return response.data;
+  },
+
+  // Récupérer les dossiers urgents (échéance < 30 jours)
+  getUrgentDossiers: async () => {
+    const response = await api.get('/dossiers/urgent');
+    return response.data;
   }
 };
 

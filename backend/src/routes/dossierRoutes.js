@@ -5,7 +5,8 @@ import {
   getDossierById,
   updateDossier,
   deleteDossier,
-  addNote
+  addNote,
+  getUrgentDossiers
 } from '../controllers/dossierController.js';
 import { protect, isAdmin } from '../middleware/authMiddleware.js';
 import { body } from 'express-validator';
@@ -81,6 +82,10 @@ const addNoteValidation = [
 
 // Routes CRUD de base
 // Toutes les routes nécessitent une authentification (middleware protect)
+
+// GET /api/dossiers/urgent - Récupérer les dossiers urgents (< 30 jours d'échéance)
+// IMPORTANT : Cette route doit être AVANT '/:id' sinon 'urgent' sera interprété comme un ID
+router.get('/urgent', protect, getUrgentDossiers);
 
 // GET /api/dossiers - Lister tous les dossiers du cabinet
 router.get('/', protect, getDossiers);

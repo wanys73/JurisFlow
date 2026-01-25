@@ -34,6 +34,9 @@ model User {
   isActive      Boolean @default(true)
   emailVerified Boolean @default(false)
 
+  // Plan d'abonnement
+  planType     PlanType @default(BASIC)
+
   // Préférences utilisateur
   themePreference String? @default("clair") // 'clair', 'sombre', 'systeme'
   enableAnimations Boolean @default(true)
@@ -64,6 +67,7 @@ model User {
   notifications       Notification[]
   conversations       Conversation[]
   generatedDocuments  GeneratedDocument[]
+  activityLogs        ActivityLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -76,6 +80,11 @@ model User {
 enum Role {
   ADMIN
   COLLABORATEUR
+}
+
+enum PlanType {
+  BASIC
+  PREMIUM
 }
 
 // Modèle Client
@@ -145,6 +154,7 @@ model Dossier {
   dateOuverture         DateTime  @default(now())
   dateCloture           DateTime?
   dateProchainEvenement DateTime?
+  dateEcheance          DateTime? // Date limite de prescription / échéance critique
 
   // Relations imbriquées
   notes              DossierNote[]
@@ -472,4 +482,25 @@ enum DocumentType {
   REQUETE
   COURRIER_JURIDIQUE
   CONCLUSIONS
+}
+
+// =============================================================================
+// AUDIT LOG - Traçabilité des actions utilisateur
+// =============================================================================
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String   // "CREATE", "UPDATE", "DELETE"
+  target    String   // "Dossier", "Client", "Facture", etc.
+  targetId  String?  // ID de l'entité modifiée
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metadata  Json?    // Données supplémentaires (avant/après, IP, etc.)
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([target])
+  @@index([timestamp])
+  @@map("activity_logs")
 }

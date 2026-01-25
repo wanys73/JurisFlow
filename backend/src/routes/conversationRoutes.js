@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
+import { requirePremium, trackPremiumAttempt } from '../middleware/planGatekeeper.js';
 import {
   createConversation,
   getConversations,
@@ -22,6 +23,10 @@ const router = express.Router();
 
 // Toutes les routes nécessitent une authentification
 router.use(protect);
+
+// ⭐ GATEKEEPER PREMIUM : Studio IA réservé aux abonnés PREMIUM
+router.use(trackPremiumAttempt);
+router.use(requirePremium);
 
 // Routes conversations
 router.post('/conversations', createConversation);

@@ -31,6 +31,9 @@ import {
   handleValidationError
 } from './middleware/errorMiddleware.js';
 
+// Import du middleware d'audit
+import { auditMiddleware } from './middleware/auditMiddleware.js';
+
 // Import des jobs cron
 import { startEventReminderJob } from './jobs/eventReminderJob.js';
 import { startNotificationJob } from './jobs/notificationJob.js';
@@ -113,6 +116,12 @@ app.use(express.json({ limit: '10mb' }));
 
 // Parser URL-encoded
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// === MIDDLEWARES D'APPLICATION ===
+
+// Middleware d'audit (traces toutes les actions pour conformité RGPD)
+// Appliqué après parsing mais avant les routes
+app.use('/api', auditMiddleware);
 
 // === ROUTES ===
 

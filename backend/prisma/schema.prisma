@@ -62,6 +62,8 @@ model User {
   notes               DossierNote[]
   timelineEntries     DossierTimeline[]
   notifications       Notification[]
+  conversations       Conversation[]
+  generatedDocuments  GeneratedDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -145,11 +147,13 @@ model Dossier {
   dateProchainEvenement DateTime?
 
   // Relations imbriquées
-  notes      DossierNote[]
-  timeline   DossierTimeline[]
-  documents  Document[]
-  factures   Facture[]
-  evenements Evenement[]
+  notes              DossierNote[]
+  timeline           DossierTimeline[]
+  documents          Document[]
+  factures           Facture[]
+  evenements         Evenement[]
+  conversations      Conversation[]
+  generatedDocuments GeneratedDocument[]
 
   // Métadonnées
   createdById String
@@ -370,4 +374,102 @@ model Notification {
   @@index([utilisateurId, lu])
   @@index([dateEnvoi])
   @@map("notifications")
+}
+
+// ========================================
+// STUDIO IA - MISSION 1 : Conversations
+// ========================================
+
+// Modèle Conversation (Sessions de chat avec l'IA)
+model Conversation {
+  id          String    @id @default(cuid())
+  title       String?   // Titre auto-généré ou personnalisé
+  
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  dossierId   String?   // Optionnel : lier à un dossier
+  dossier     Dossier?  @relation(fields: [dossierId], references: [id], onDelete: SetNull)
+  
+  messages           Message[]
+  generatedDocuments GeneratedDocument[]
+  
+  isArchived  Boolean   @default(false)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([dossierId])
+  @@map("conversations")
+}
+
+// Modèle Message (Messages dans une conversation)
+model Message {
+  id              String       @id @default(cuid())
+  
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  role            String       // "user" ou "assistant"
+  content         String       @db.Text
+  
+  createdAt       DateTime     @default(now())
+  
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ========================================
+// STUDIO IA - MISSION 2 : Documents Générés
+// ========================================
+
+// Modèle GeneratedDocument (Documents créés par IA)
+model GeneratedDocument {
+  id            String   @id @default(cuid())
+  
+  // Type de document
+  documentType  DocumentType
+  
+  // Contenu et métadonnées
+  content       String   @db.Text
+  title         String
+  
+  // Stockage
+  urlS3         String?  // URL du document dans Supabase Storage
+  keyS3         String?  // Clé du document dans Supabase
+  
+  // Relations
+  dossierId     String?
+  dossier       Dossier? @relation(fields: [dossierId], references: [id], onDelete: SetNull)
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  
+  // Options de génération (JSON)
+  generationOptions String? @db.Text // Stocké en JSON
+  
+  isArchived    Boolean  @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([dossierId])
+  @@index([documentType])
+  @@map("generated_documents")
+}
+
+// Types de documents générés par IA
+enum DocumentType {
+  MISE_EN_DEMEURE
+  CONTRAT_PRESTATION
+  ASSIGNATION
+  REQUETE
+  COURRIER_JURIDIQUE
+  CONCLUSIONS
 }

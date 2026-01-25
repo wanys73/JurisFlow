@@ -138,11 +138,21 @@ const Login = () => {
           </form>
 
           {/* Lien inscription */}
-          <div className="mt-6 text-center text-sm text-secondary-600">
-            Pas encore de compte ?{' '}
-            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
-              Créer un compte
-            </Link>
+          <div className="mt-6 text-center space-y-2">
+            <div className="text-sm text-secondary-600">
+              Pas encore de compte ?{' '}
+              <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
+                Créer un compte
+              </Link>
+            </div>
+            <div className="text-sm">
+              <Link 
+                to="/forgot-password" 
+                className="text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
           </div>
         </div>
 

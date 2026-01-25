@@ -185,6 +185,38 @@ export const uploadToSupabase = async (file, dossierId, userId) => {
   }
 };
 
+// Upload d'un buffer (ex: document généré) vers Supabase Storage
+export const uploadBuffer = async (buffer, filePath, contentType = 'text/plain', upsert = false) => {
+  try {
+    if (!buffer) {
+      throw new Error('Buffer manquant pour upload');
+    }
+
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(filePath, buffer, {
+        contentType,
+        upsert
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(filePath);
+
+    return {
+      publicUrl: urlData.publicUrl,
+      path: data?.path || filePath
+    };
+  } catch (error) {
+    console.error('Erreur upload buffer Supabase:', error);
+    throw error;
+  }
+};
+
 // Fonction pour uploader un fichier du cabinet (logo, signature, KBIS) vers Supabase Storage
 export const uploadCabinetFile = async (file, folder) => {
   try {

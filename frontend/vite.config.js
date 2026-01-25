@@ -11,11 +11,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5174,
+    strictPort: true, // Ne pas basculer sur 5175 si 5174 est pris
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5087',
         changeOrigin: true,
+        rewrite: (path) => path, // Ne pas réécrire le chemin, garder /api
       },
     },
   },

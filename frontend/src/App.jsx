@@ -8,6 +8,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ConfirmEmail from './pages/ConfirmEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Dossiers from './pages/Dossiers';
 import DossierDetail from './pages/DossierDetail';
@@ -85,6 +87,14 @@ function App() {
           <Route 
             path="/auth/confirm/:token" 
             element={<ConfirmEmail />} 
+          />
+          <Route 
+            path="/forgot-password" 
+            element={<ForgotPassword />} 
+          />
+          <Route 
+            path="/reset-password/:token" 
+            element={<ResetPassword />} 
           />
           
           {/* Routes protégées */}

@@ -1500,13 +1500,55 @@ export const getTemplates = async (req, res) => {
 // @access  Private
 export const chatIA = async (req, res) => {
   try {
-    const { message, history = [] } = req.body;
+    const { message, history = [], conversationId, dossierId } = req.body;
+    const userId = req.user.userId;
 
     // Validation
     if (!message || !message.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Le message est requis'
+      });
+    }
+
+    // Gérer la conversation (créer ou récupérer)
+    let conversation;
+    let dbHistory = [];
+
+    if (conversationId) {
+      // Récupérer la conversation existante avec son historique
+      conversation = await prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          userId
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' }
+          }
+        }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Conversation non trouvée'
+        });
+      }
+
+      // Utiliser l'historique de la base de données
+      dbHistory = conversation.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+    } else if (history.length === 0) {
+      // Créer une nouvelle conversation si pas d'historique fourni
+      conversation = await prisma.conversation.create({
+        data: {
+          title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
+          userId,
+          dossierId: dossierId || null
+        }
       });
     }
 
@@ -1522,13 +1564,16 @@ export const chatIA = async (req, res) => {
     }
 
     // Construire l'historique de conversation avec le prompt système JurisFlow AI
+    // Utiliser l'historique de la DB si disponible, sinon l'historique fourni
+    const conversationHistory = conversationId ? dbHistory : history;
+    
     const messages = [
       {
         role: 'system',
         content: PROMPT_SYSTEM_JURISFLOW
       },
-      // Ajouter l'historique si fourni
-      ...history.map(msg => ({
+      // Ajouter l'historique
+      ...conversationHistory.map(msg => ({
         role: msg.role || 'user',
         content: msg.content
       })),
@@ -1553,12 +1598,40 @@ export const chatIA = async (req, res) => {
 
     console.log('✅ Chat IA - Réponse reçue');
 
-    // Retourner la réponse
+    // Sauvegarder les messages dans la conversation si elle existe
+    if (conversation) {
+      await prisma.$transaction([
+        // Sauvegarder le message utilisateur
+        prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: 'user',
+            content: message.trim()
+          }
+        }),
+        // Sauvegarder la réponse de l'assistant
+        prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: 'assistant',
+            content: response
+          }
+        }),
+        // Mettre à jour le timestamp de la conversation
+        prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { updatedAt: new Date() }
+        })
+      ]);
+    }
+
+    // Retourner la réponse avec l'ID de conversation
     res.status(200).json({
       success: true,
       data: {
         response: response,
         message: message,
+        conversationId: conversation?.id,
         timestamp: new Date().toISOString()
       }
     });

@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
-import { sendWelcomeEmail, sendVerificationEmail } from '../services/emailService.js';
+import { sendWelcomeEmail, sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
 
 // Générer un token JWT
 const generateAccessToken = (userId) => {
@@ -535,6 +535,159 @@ export const activateAccountManually = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de l\'activation du compte'
+    });
+  }
+};
+
+// @desc    Demander une réinitialisation de mot de passe
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email requis'
+      });
+    }
+
+    // Trouver l'utilisateur
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+
+    // Ne pas révéler si l'email existe ou non (sécurité)
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'Si cet email existe, un lien de réinitialisation a été envoyé.'
+      });
+    }
+
+    // Générer un token de réinitialisation
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetPasswordExpire = new Date(Date.now() + 3600000); // 1 heure
+
+    // Sauvegarder le token dans la base de données
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: resetToken,
+        resetPasswordExpire
+      }
+    });
+
+    // Envoyer l'email de réinitialisation (même logique que register : service centralisé uniquement)
+    try {
+      await sendPasswordResetEmail(user.email, resetToken, `${user.prenom} ${user.nom}`);
+      console.log('✅ Email de réinitialisation envoyé à:', user.email);
+
+      res.status(200).json({
+        success: true,
+        message: 'Si cet email existe, un lien de réinitialisation a été envoyé. Vérifiez votre boîte mail (et les spams).'
+      });
+    } catch (emailError) {
+      // Nettoyer le token en cas d'erreur d'envoi
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetPasswordToken: null,
+          resetPasswordExpire: null
+        }
+      });
+
+      // Logger l'erreur de manière appropriée selon l'environnement
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️  Email de réinitialisation non envoyé (configuration email manquante ou invalide)');
+        console.warn('   Erreur:', emailError.message);
+        console.warn('💡 Alternative: Utilisez le script resetPassword.js pour réinitialiser directement');
+        console.warn('   Exemple: node scripts/resetPassword.js user@example.com NouveauMotDePasse123');
+      } else {
+        console.error('❌ Erreur lors de l\'envoi de l\'email de réinitialisation:', emailError.message);
+      }
+
+      // Retourner une erreur gracieuse (pas de 500)
+      // Ne pas révéler l'erreur exacte pour des raisons de sécurité
+      return res.status(200).json({
+        success: false,
+        message: 'Erreur technique lors de l\'envoi de l\'email. Veuillez réessayer plus tard ou contacter le support.'
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors de la demande de réinitialisation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la demande de réinitialisation'
+    });
+  }
+};
+
+// @desc    Réinitialiser le mot de passe avec un token
+// @route   POST /api/auth/reset-password/:token
+// @access  Public
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nouveau mot de passe requis'
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 8 caractères'
+      });
+    }
+
+    // Trouver l'utilisateur avec le token valide
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: token,
+        resetPasswordExpire: {
+          gt: new Date() // Token non expiré
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token invalide ou expiré'
+      });
+    }
+
+    // Hasher le nouveau mot de passe
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Mettre à jour le mot de passe et supprimer le token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpire: null
+      }
+    });
+
+    console.log('✅ Mot de passe réinitialisé pour:', user.email);
+
+    res.status(200).json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.'
+    });
+  } catch (error) {
+    console.error('Erreur lors de la réinitialisation du mot de passe:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la réinitialisation du mot de passe'
     });
   }
 };

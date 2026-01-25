@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import Layout from '../components/Layout';
-import { iaService, dossierService } from '../services/api';
+import { dossierService } from '../services/api';
+import {
+  getConversations,
+  getConversation,
+  sendMessage as sendStudioMessage,
+  deleteConversation
+} from '../services/studioIaService';
+import {
+  getDocumentTypes,
+  generateDocument as generateDocumentIA,
+  updateGeneratedDocument,
+  exportGeneratedDocument
+} from '../services/documentGenerationService';
 import { 
   Sparkles, 
   Send, 
@@ -16,7 +28,9 @@ import {
   Settings,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Trash2,
+  PanelLeft
 } from 'lucide-react';
 
 const IA_Studio = () => {
@@ -26,17 +40,26 @@ const IA_Studio = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const chatEndRef = useRef(null);
+  const [conversations, setConversations] = useState([]);
+  const [currentConversation, setCurrentConversation] = useState(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // État pour la génération de documents
   const [dossiers, setDossiers] = useState([]);
   const [selectedDossier, setSelectedDossier] = useState('');
-  const [templates, setTemplates] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [documentTypes, setDocumentTypes] = useState([]);
+  const [selectedDocumentType, setSelectedDocumentType] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
   const [generationSuccess, setGenerationSuccess] = useState(false);
   const [loadingDossiers, setLoadingDossiers] = useState(true);
-  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [loadingDocumentTypes, setLoadingDocumentTypes] = useState(true);
+  const [generatedDocument, setGeneratedDocument] = useState(null);
+  const [editedContent, setEditedContent] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState('');
   
   // Nouveaux états pour le formulaire détaillé
   const [montant, setMontant] = useState('');
@@ -52,10 +75,11 @@ const IA_Studio = () => {
   const [promptContextuel, setPromptContextuel] = useState('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
-  // Charger les dossiers et templates au montage
+  // Charger les dossiers et types de documents au montage
   useEffect(() => {
     loadDossiers();
     loadTemplates();
+    loadConversations();
   }, []);
 
   // Scroll automatique vers le bas du chat
@@ -79,16 +103,60 @@ const IA_Studio = () => {
 
   const loadTemplates = async () => {
     try {
-      setLoadingTemplates(true);
-      const response = await iaService.getTemplates();
-      setTemplates(response.data.templates || []);
-      if (response.data.templates && response.data.templates.length > 0) {
-        setSelectedTemplate(response.data.templates[0].id);
+      setLoadingDocumentTypes(true);
+      const types = await getDocumentTypes();
+      setDocumentTypes(types);
+      if (types && types.length > 0) {
+        setSelectedDocumentType(types[0].id);
       }
     } catch (err) {
-      console.error('Erreur lors du chargement des templates:', err);
+      console.error('Erreur lors du chargement des types de documents:', err);
     } finally {
-      setLoadingTemplates(false);
+      setLoadingDocumentTypes(false);
+    }
+  };
+
+  const loadConversations = async () => {
+    try {
+      setLoadingConversations(true);
+      const convs = await getConversations();
+      setConversations(convs);
+
+      if (convs.length > 0 && !currentConversation) {
+        await loadConversation(convs[0].id);
+      }
+    } catch (err) {
+      console.error('Erreur chargement conversations:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  const loadConversation = async (conversationId) => {
+    try {
+      const conv = await getConversation(conversationId);
+      setCurrentConversation(conv);
+      setChatHistory(conv.messages || []);
+    } catch (err) {
+      console.error('Erreur chargement conversation:', err);
+    }
+  };
+
+  const handleNewConversation = () => {
+    setCurrentConversation(null);
+    setChatHistory([]);
+    setChatError('');
+  };
+
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      await deleteConversation(conversationId);
+      if (currentConversation?.id === conversationId) {
+        handleNewConversation();
+      }
+      await loadConversations();
+    } catch (err) {
+      console.error('Erreur suppression conversation:', err);
     }
   };
 
@@ -112,14 +180,12 @@ const IA_Studio = () => {
     try {
       setChatLoading(true);
 
-      // Préparer l'historique pour l'API (format simplifié)
-      const historyForAPI = chatHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
-      // Appeler l'API de chat
-      const response = await iaService.chat(userMessage, historyForAPI);
+      // Appeler l'API de chat avec persistance
+      const response = await sendStudioMessage(
+        userMessage,
+        currentConversation?.id || null,
+        selectedDossier || null
+      );
 
       // Ajouter la réponse de l'IA à l'historique
       const aiMessage = {
@@ -128,6 +194,12 @@ const IA_Studio = () => {
         timestamp: response.data.timestamp
       };
       setChatHistory(prev => [...prev, aiMessage]);
+
+      // Si une conversation vient d'être créée, la sauvegarder en state
+      if (!currentConversation && response.data.conversationId) {
+        await loadConversation(response.data.conversationId);
+        await loadConversations();
+      }
 
     } catch (err) {
       console.error('Erreur lors du chat:', err);
@@ -180,8 +252,18 @@ const IA_Studio = () => {
       return;
     }
 
-    if (!selectedTemplate) {
+    if (!selectedDocumentType) {
       setGenerationError('Veuillez sélectionner un type de document');
+      return;
+    }
+    
+    if (!exposeFait || exposeFait.trim().length < 10) {
+      setGenerationError('Veuillez renseigner un exposé des faits (minimum 10 caractères)');
+      return;
+    }
+    
+    if (!destinataireNom && !destinatairePrenom) {
+      setGenerationError('Veuillez renseigner au moins un nom ou un prénom du destinataire');
       return;
     }
 
@@ -190,9 +272,27 @@ const IA_Studio = () => {
       setGenerationError('');
       setGenerationSuccess(false);
 
-      const promptFinal = buildPromptContextuel();
-      await iaService.generateDocument(selectedDossier, selectedTemplate, promptFinal);
-      
+      const options = {
+        destinataire: {
+          prenom: destinatairePrenom,
+          nom: destinataireNom,
+          adresse: destinataireAdresse,
+          email: destinataireEmail,
+          telephone: destinataireTelephone
+        },
+        montantReclame: montant,
+        exposeFaits: exposeFait,
+        fondementJuridique,
+        delaiRegularisation: delai,
+        consequencesNonReponse: consequences,
+        instructionsSupplementaires: promptContextuel
+      };
+
+      const result = await generateDocumentIA(selectedDossier, selectedDocumentType, options, true);
+
+      setGeneratedDocument(result);
+      setEditedContent(result.content || '');
+      setPreviewOpen(true);
       setGenerationSuccess(true);
       
       // Réinitialiser les champs
@@ -222,6 +322,49 @@ const IA_Studio = () => {
     }
   };
 
+  const handleSaveDocument = async () => {
+    if (!generatedDocument?.documentId) return;
+    try {
+      setSavingDocument(true);
+      const updated = await updateGeneratedDocument(generatedDocument.documentId, {
+        content: editedContent,
+        title: generatedDocument.title,
+        syncStorage: true
+      });
+      setGeneratedDocument((prev) => ({
+        ...prev,
+        content: updated.content,
+        title: updated.title
+      }));
+    } catch (err) {
+      console.error('Erreur sauvegarde document:', err);
+      setGenerationError('Erreur lors de la sauvegarde du document');
+    } finally {
+      setSavingDocument(false);
+    }
+  };
+
+  const handleExport = async (format) => {
+    if (!generatedDocument?.documentId) return;
+    try {
+      setExportingFormat(format);
+      const blob = await exportGeneratedDocument(generatedDocument.documentId, format);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${generatedDocument.title || 'document'}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erreur export document:', err);
+      setGenerationError('Erreur lors de l\'export du document');
+    } finally {
+      setExportingFormat('');
+    }
+  };
+
   return (
     <Layout>
       <div className="p-6 max-w-7xl mx-auto">
@@ -246,21 +389,103 @@ const IA_Studio = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Section A : Chat IA */}
           <div className="bg-white dark:bg-secondary-800 rounded-lg border border-secondary-200 dark:border-secondary-700 shadow-sm flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
-            {/* En-tête du chat */}
-            <div className="p-4 border-b border-secondary-200 dark:border-secondary-700">
-              <div className="flex items-center space-x-2">
-                <MessageSquare className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">
-                  Assistant IA
-                </h2>
-              </div>
-              <p className="text-sm text-secondary-600 dark:text-secondary-400 mt-1">
-                Posez vos questions juridiques
-              </p>
-            </div>
+            <div className="flex h-full">
+              {/* Sidebar conversations */}
+              <div className={`${sidebarCollapsed ? 'w-14' : 'w-64'} border-r border-secondary-200 dark:border-secondary-700 flex flex-col transition-all duration-200`}>
+                <div className="p-4 border-b border-secondary-200 dark:border-secondary-700">
+                  <div className="flex items-center justify-between mb-2">
+                    {!sidebarCollapsed && (
+                      <div className="flex items-center space-x-2">
+                        <MessageSquare className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                        <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">
+                          Conversations
+                        </h2>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                      className="p-2 rounded-md hover:bg-secondary-100 dark:hover:bg-secondary-700"
+                      title={sidebarCollapsed ? 'Agrandir' : 'Réduire'}
+                    >
+                      <PanelLeft className="w-4 h-4 text-secondary-600 dark:text-secondary-300" />
+                    </button>
+                  </div>
+                  {!sidebarCollapsed && (
+                    <button
+                      type="button"
+                      onClick={handleNewConversation}
+                      className="w-full btn-primary py-2 text-sm"
+                    >
+                      + Nouvelle conversation
+                    </button>
+                  )}
+                </div>
 
-            {/* Zone de conversation */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {loadingConversations ? (
+                    !sidebarCollapsed && <div className="text-sm text-secondary-500">Chargement...</div>
+                  ) : conversations.length === 0 ? (
+                    !sidebarCollapsed && <div className="text-sm text-secondary-500">Aucune conversation</div>
+                  ) : (
+                    conversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg text-sm transition ${
+                          currentConversation?.id === conv.id
+                            ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                            : 'hover:bg-secondary-100 dark:hover:bg-secondary-700'
+                        }`}
+                      >
+                        <button
+                          onClick={() => loadConversation(conv.id)}
+                          className="flex-1 min-w-0 text-left"
+                          title={conv.title || 'Conversation'}
+                        >
+                          {!sidebarCollapsed && (
+                            <>
+                              <div className="font-medium truncate">
+                                {conv.title || 'Conversation'}
+                              </div>
+                              <div className="text-xs text-secondary-500 mt-1">
+                                {conv._count?.messages || conv.messageCount || 0} messages
+                              </div>
+                            </>
+                          )}
+                        </button>
+                        {!sidebarCollapsed && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteConversation(conv.id)}
+                            className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 flex-shrink-0"
+                            title="Supprimer la conversation"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Zone de chat */}
+              <div className="flex-1 flex flex-col">
+                {/* En-tête du chat */}
+                <div className="p-4 border-b border-secondary-200 dark:border-secondary-700">
+                  <div className="flex items-center space-x-2">
+                    <MessageSquare className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                    <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">
+                      Assistant IA
+                    </h2>
+                  </div>
+                  <p className="text-sm text-secondary-600 dark:text-secondary-400 mt-1">
+                    Posez vos questions juridiques
+                  </p>
+                </div>
+
+                {/* Zone de conversation */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatHistory.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <Bot className="w-12 h-12 text-secondary-400 dark:text-secondary-500 mb-4" />
@@ -317,36 +542,38 @@ const IA_Studio = () => {
                 </div>
               )}
               <div ref={chatEndRef} />
-            </div>
-
-            {/* Zone de saisie */}
-            <div className="p-4 border-t border-secondary-200 dark:border-secondary-700">
-              {chatError && (
-                <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded-lg text-sm">
-                  {chatError}
                 </div>
-              )}
-              <form onSubmit={handleChatSubmit} className="flex space-x-2">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="Posez votre question..."
-                  className="flex-1 input"
-                  disabled={chatLoading}
-                />
-                <button
-                  type="submit"
-                  disabled={!chatMessage.trim() || chatLoading}
-                  className="btn-primary px-4 flex items-center space-x-2"
-                >
-                  {chatLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
+
+                {/* Zone de saisie */}
+                <div className="p-4 border-t border-secondary-200 dark:border-secondary-700">
+                  {chatError && (
+                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded-lg text-sm">
+                      {chatError}
+                    </div>
                   )}
-                </button>
-              </form>
+                  <form onSubmit={handleChatSubmit} className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      placeholder="Posez votre question..."
+                      className="flex-1 input"
+                      disabled={chatLoading}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!chatMessage.trim() || chatLoading}
+                      className="btn-primary px-4 flex items-center space-x-2"
+                    >
+                      {chatLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -405,23 +632,23 @@ const IA_Studio = () => {
                 <label htmlFor="template" className="label">
                   Type de document <span className="text-red-500">*</span>
                 </label>
-                {loadingTemplates ? (
+                {loadingDocumentTypes ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
                   </div>
                 ) : (
                   <select
                     id="template"
-                    value={selectedTemplate}
-                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                    value={selectedDocumentType}
+                    onChange={(e) => setSelectedDocumentType(e.target.value)}
                     className="input"
                     required
                     disabled={generating}
                   >
                     <option value="">Sélectionner un type...</option>
-                    {templates.map((template) => (
+                    {documentTypes.map((template) => (
                       <option key={template.id} value={template.id}>
-                        {template.nom} — {template.description}
+                        {template.label} — {template.description}
                       </option>
                     ))}
                   </select>
@@ -713,7 +940,7 @@ const IA_Studio = () => {
               <button
                 type="submit"
                 className="btn-primary w-full flex items-center justify-center space-x-2"
-                disabled={generating || !selectedDossier || !selectedTemplate}
+                disabled={generating || !selectedDossier || !selectedDocumentType}
               >
                 {generating ? (
                   <>
@@ -745,6 +972,69 @@ const IA_Studio = () => {
                 </div>
               )}
             </form>
+
+            {/* Prévisualisation et édition */}
+            {previewOpen && generatedDocument && (
+              <div className="p-4 border-t border-secondary-200 dark:border-secondary-700 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white">
+                    Prévisualisation du document
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(false)}
+                    className="text-secondary-400 hover:text-secondary-600 dark:hover:text-secondary-300"
+                    title="Fermer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <textarea
+                  className="input w-full min-h-[240px] font-mono text-sm"
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDocument}
+                    className="btn-primary px-4"
+                    disabled={savingDocument}
+                  >
+                    {savingDocument ? 'Sauvegarde...' : 'Sauvegarder'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExport('pdf')}
+                    className="btn-secondary px-4"
+                    disabled={exportingFormat === 'pdf'}
+                  >
+                    {exportingFormat === 'pdf' ? 'Export...' : 'Exporter PDF'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExport('docx')}
+                    className="btn-secondary px-4"
+                    disabled={exportingFormat === 'docx'}
+                  >
+                    {exportingFormat === 'docx' ? 'Export...' : 'Exporter DOCX'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExport('txt')}
+                    className="btn-secondary px-4"
+                    disabled={exportingFormat === 'txt'}
+                  >
+                    {exportingFormat === 'txt' ? 'Export...' : 'Exporter TXT'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

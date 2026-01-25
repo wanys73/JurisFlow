@@ -4,7 +4,7 @@
   "description": "Frontend de JurisFlow - Application SaaS pour professionnels du droit",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npx kill-port 5174 && vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"

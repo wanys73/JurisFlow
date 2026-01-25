@@ -20,6 +20,7 @@ import evenementRoutes from './routes/evenementRoutes.js';
 import rapportRoutes from './routes/rapportRoutes.js';
 import cabinetRoutes from './routes/cabinetRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import conversationRoutes from './routes/conversationRoutes.js';
 
 // Import des middlewares d'erreur
 import {
@@ -48,6 +49,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [process.env.FRONTEND_URL || 'http://localhost:5173']
   : [
       'http://localhost:5173',
+      'http://localhost:5174',
       'http://localhost:5175',
       'http://localhost:3000',
       process.env.FRONTEND_URL
@@ -168,6 +170,9 @@ app.use('/api', rapportRoutes);
 app.use('/api', cabinetRoutes);
 app.use('/api/notifications', notificationRoutes);
 
+// Studio IA - Conversations
+app.use('/api/studio-ia', conversationRoutes);
+
 // === GESTION DES ERREURS ===
 
 // Middlewares de gestion d'erreurs spécifiques
@@ -183,28 +188,53 @@ app.use(errorHandler);
 
 // === CONNEXION À LA BASE DE DONNÉES ===
 
-const connectDB = async () => {
-  try {
-    // Tester la connexion Prisma
-    await prisma.$connect();
-    console.log(`✅ Base de données PostgreSQL (Supabase) connectée`);
-    
-    // Vérifier la connexion avec une requête simple
-    await prisma.$queryRaw`SELECT 1`;
-    console.log(`📊 Connexion Prisma opérationnelle`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Erreur de connexion à la base de données: ${error.message}`);
-    console.error(`📍 Vérifiez DATABASE_URL dans le fichier .env`);
-    console.error(`⚠️  Le serveur va démarrer mais certaines fonctionnalités seront indisponibles.`);
-    // NE PAS FAIRE process.exit(1) - permet au serveur de démarrer même si la DB est temporairement inaccessible
-    return false;
+const connectDB = async (retries = 5, delay = 5000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔄 Tentative de connexion ${attempt}/${retries} à la base de données...`);
+      
+      // Tester la connexion Prisma avec timeout plus long (60s pour Supabase)
+      await Promise.race([
+        prisma.$connect(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout de connexion (60s)')), 60000)
+        )
+      ]);
+      
+      // Vérifier la connexion avec une requête simple (avec timeout)
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout de requête (10s)')), 10000)
+        )
+      ]);
+      
+      console.log(`✅ Base de données PostgreSQL (Supabase) connectée`);
+      console.log(`📊 Connexion Prisma opérationnelle`);
+      return true;
+    } catch (error) {
+      if (attempt === retries) {
+        console.error(`❌ Erreur de connexion à la base de données après ${retries} tentatives: ${error.message}`);
+        console.error(`📍 Vérifiez DATABASE_URL dans le fichier .env`);
+        console.error(`💡 Astuce: Utilisez le port 6543 (pooler) avec ?connect_timeout=60&pool_timeout=60&pgbouncer=true`);
+        console.error(`💡 Exemple: postgresql://...@aws-0-xxx.pooler.supabase.com:6543/postgres?connect_timeout=60&pool_timeout=60&pgbouncer=true`);
+        console.error(`⚠️  Le serveur va démarrer mais certaines fonctionnalités seront indisponibles.`);
+        // NE PAS FAIRE process.exit(1) - permet au serveur de démarrer même si la DB est temporairement inaccessible
+        return false;
+      }
+      const nextDelay = delay * attempt; // Délai progressif : 5s, 10s, 15s, 20s
+      console.warn(`⚠️  Tentative ${attempt}/${retries} échouée: ${error.message}`);
+      console.warn(`⏳ Nouvelle tentative dans ${nextDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, nextDelay));
+    }
   }
+  return false;
 };
 
 // === DÉMARRAGE DU SERVEUR ===
 
-const PORT = process.env.PORT || 5000;
+// Port forcé 5087 (npx kill-port 5087 est exécuté avant nodemon via script dev)
+const PORT = parseInt(process.env.PORT, 10) || 5087;
 
 const startServer = async () => {
   // Connexion à la base de données
@@ -213,8 +243,8 @@ const startServer = async () => {
   // Démarrer le job cron pour les rappels d'événements
   startEventReminderJob();
 
-  // Démarrage du serveur
-  app.listen(PORT, () => {
+  // Démarrage du serveur sur le port 5087 uniquement (pas de bascule)
+  const server = app.listen(PORT, () => {
     console.log(`\n🚀 Serveur JurisFlow démarré avec succès`);
     console.log(`📡 Mode: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 URL: http://localhost:${PORT}`);
@@ -249,6 +279,18 @@ const startServer = async () => {
     console.log(`   GET    /api/statistiques/kpi      - KPIs du tableau de bord`);
     console.log(`   GET    /api/statistiques/revenus-mensuels - Revenus des 12 derniers mois`);
     console.log(`\n⏳ En attente de requêtes...\n`);
+  });
+
+  // Gestion des erreurs de démarrage du serveur (port 5087 forcé)
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Le port ${PORT} est déjà utilisé. Libérez-le puis relancez :`);
+      console.error(`   ./STOP.sh   ou   npx kill-port ${PORT}`);
+      process.exit(1);
+    } else {
+      console.error(`❌ Erreur lors du démarrage du serveur: ${error.message}`);
+      process.exit(1);
+    }
   });
 };
 

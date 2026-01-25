@@ -7,7 +7,9 @@ import {
   getMe,
   confirmEmail,
   resendConfirmationEmail,
-  activateAccountManually
+  activateAccountManually,
+  forgotPassword,
+  resetPassword
 } from '../controllers/authController.js';
 import {
   getPreferences,
@@ -28,6 +30,8 @@ router.post('/login', loginValidation, login);
 router.post('/refresh', refreshTokenValidation, refreshToken);
 router.get('/confirm/:token', confirmEmail);
 router.post('/resend-confirmation', resendConfirmationEmail);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password/:token', resetPassword);
 // Route temporaire pour activer manuellement (développement uniquement)
 if (process.env.NODE_ENV !== 'production') {
   router.post('/activate-account', activateAccountManually);

@@ -1,8 +1,19 @@
 import axios from 'axios';
 
 // Configuration de base d'axios
+// S'assurer que la baseURL se termine par /api et ne contient pas de slash final
+const getBaseURL = () => {
+  const envURL = import.meta.env.VITE_API_URL;
+  if (envURL) {
+    // Nettoyer l'URL : enlever le slash final s'il existe
+    return envURL.endsWith('/') ? envURL.slice(0, -1) : envURL;
+  }
+  // Utiliser 5087 comme fallback (port par défaut du backend)
+  return 'http://localhost:5087/api';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -36,10 +47,8 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
         
         if (refreshToken) {
-          const response = await axios.post(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh`,
-            { refreshToken }
-          );
+          // Utiliser l'instance api configurée au lieu d'axios directement
+          const response = await api.post('/auth/refresh', { refreshToken });
 
           const { accessToken } = response.data.data;
           localStorage.setItem('accessToken', accessToken);
@@ -139,6 +148,18 @@ export const authService = {
   // Rafraîchir le token
   refreshToken: async (refreshToken) => {
     const response = await api.post('/auth/refresh', { refreshToken });
+    return response.data;
+  },
+
+  // Demander une réinitialisation de mot de passe
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  // Réinitialiser le mot de passe avec un token
+  resetPassword: async (token, password) => {
+    const response = await api.post(`/auth/reset-password/${token}`, { password });
     return response.data;
   },
 };

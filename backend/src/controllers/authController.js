@@ -30,6 +30,7 @@ const userToPublicJSON = (user) => {
     prenom: user.prenom,
     email: user.email,
     role: user.role,
+    planType: user.planType || 'PREMIUM', // ⚠️ Défaut PREMIUM si null
     cabinet: {
       nom: user.cabinetNom,
       logoUrl: user.cabinetLogoUrl,
@@ -178,18 +179,27 @@ export const login = async (req, res) => {
       });
     }
 
-    // Trouver l'utilisateur actif avec le mot de passe
+    // Trouver l'utilisateur
     const user = await prisma.user.findUnique({
       where: { 
-        email: email.toLowerCase(),
-        isActive: true
+        email: email.toLowerCase().trim()
       }
     });
 
     if (!user) {
+      console.log(`❌ Utilisateur non trouvé: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Email ou mot de passe incorrect'
+      });
+    }
+
+    // Vérifier que l'utilisateur est actif
+    if (!user.isActive) {
+      console.log(`❌ Compte inactif: ${email}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Votre compte a été désactivé. Contactez l\'administrateur.'
       });
     }
 
@@ -205,10 +215,22 @@ export const login = async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      console.log(`❌ Mot de passe incorrect pour: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Email ou mot de passe incorrect'
       });
+    }
+
+    // ⚠️ CORRECTION CRITIQUE : Assigner PREMIUM par défaut si planType est null
+    let userPlanType = user.planType;
+    if (!userPlanType) {
+      console.warn(`⚠️ PlanType null détecté pour ${email}, assignation PREMIUM par défaut`);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { planType: 'PREMIUM' }
+      });
+      userPlanType = 'PREMIUM';
     }
 
     // Générer les tokens
@@ -224,12 +246,17 @@ export const login = async (req, res) => {
       }
     });
 
+    console.log(`✅ Connexion réussie: ${email} (Plan: ${userPlanType})`);
+
     // Réponse avec les tokens
     res.status(200).json({
       success: true,
       message: 'Connexion réussie',
       data: {
-        user: userToPublicJSON(user),
+        user: {
+          ...userToPublicJSON(user),
+          planType: userPlanType || 'PREMIUM' // Assurer que planType est toujours défini
+        },
         tokens: {
           accessToken,
           refreshToken
@@ -238,10 +265,11 @@ export const login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur lors de la connexion:', error);
+    console.error('❌ Erreur lors de la connexion:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la connexion'
+      message: 'Erreur lors de la connexion',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
   }
 };

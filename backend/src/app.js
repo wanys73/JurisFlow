@@ -81,7 +81,7 @@ app.use(cors({
 }));
 
 // Rate limiting pour prévenir les attaques par force brute
-// En développement, limite plus élevée pour éviter les blocages
+// ⚠️ DÉSACTIVÉ COMPLÈTEMENT EN DÉVELOPPEMENT pour éviter les blocages
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 en dev, 100 en prod
@@ -91,14 +91,15 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // En développement, ne pas bloquer complètement
-  skip: (req) => process.env.NODE_ENV === 'development' && req.path === '/health'
+  // En développement, désactiver complètement le rate limiting
+  skip: (req) => process.env.NODE_ENV === 'development'
 });
 
 // Appliquer le rate limiting à toutes les requêtes
 app.use('/api/', limiter);
 
 // Rate limiting plus strict pour l'authentification
+// ⚠️ DÉSACTIVÉ COMPLÈTEMENT EN DÉVELOPPEMENT
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: process.env.NODE_ENV === 'production' ? 10 : 100, // 100 en dev, 10 en prod
@@ -107,6 +108,8 @@ const authLimiter = rateLimit({
     message: 'Trop de tentatives de connexion, veuillez réessayer dans 15 minutes.'
   },
   skipSuccessfulRequests: true,
+  // En développement, désactiver complètement le rate limiting
+  skip: (req) => process.env.NODE_ENV === 'development'
 });
 
 // === MIDDLEWARES ===

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { statistiqueService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import UrgentDossiersWidget from '../components/UrgentDossiersWidget';
 
 const Dashboard = () => {
   const [kpis, setKpis] = useState({
@@ -96,6 +97,21 @@ const Dashboard = () => {
   return (
     <Layout>
       <div className="p-8">
+          {/* Titre principal */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-secondary-900 dark:text-white mb-2">
+              Tableau de bord
+            </h1>
+            <p className="text-secondary-600 dark:text-secondary-400">
+              Vue d'ensemble de votre activité
+            </p>
+          </div>
+
+          {/* Widget Dossiers Urgents - Killer Feature */}
+          <div className="mb-8">
+            <UrgentDossiersWidget />
+          </div>
+
           {/* Loading state */}
           {loading && (
             <div className="text-center py-12">

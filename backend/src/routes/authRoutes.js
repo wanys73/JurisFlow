@@ -12,6 +12,10 @@ import {
   resetPassword
 } from '../controllers/authController.js';
 import {
+  initiateGoogleAuth,
+  googleCallback
+} from '../controllers/googleAuthController.js';
+import {
   getPreferences,
   updatePreferences
 } from '../controllers/userController.js';
@@ -32,6 +36,10 @@ router.get('/confirm/:token', confirmEmail);
 router.post('/resend-confirmation', resendConfirmationEmail);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password/:token', resetPassword);
+
+// Routes Google OAuth
+router.get('/google', initiateGoogleAuth);
+router.get('/callback/google', googleCallback);
 // Route temporaire pour activer manuellement (développement uniquement)
 if (process.env.NODE_ENV !== 'production') {
   router.post('/activate-account', activateAccountManually);

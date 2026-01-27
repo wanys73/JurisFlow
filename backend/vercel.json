@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "name": "jurisflow-backend",
+  "builds": [
+    {
+      "src": "src/app.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/app.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "regions": ["cdg1"],
+  "functions": {
+    "src/app.js": {
+      "maxDuration": 30
+    }
+  }
+}

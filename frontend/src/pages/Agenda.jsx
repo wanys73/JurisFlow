@@ -4,7 +4,8 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import frLocale from '@fullcalendar/core/locales/fr';
-import { evenementService, dossierService } from '../services/api';
+import { evenementService, dossierService, googleCalendarService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import {
   Calendar as CalendarIcon,
@@ -18,8 +19,10 @@ import {
 } from 'lucide-react';
 
 const Agenda = () => {
+  const { user } = useAuth();
   const calendarRef = useRef(null);
   const [evenements, setEvenements] = useState([]);
+  const [googleEvents, setGoogleEvents] = useState([]);
   const [dossiers, setDossiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -55,8 +58,26 @@ const Agenda = () => {
       if (start) params.start = start.toISOString();
       if (end) params.end = end.toISOString();
       
+      // Charger les événements locaux
       const response = await evenementService.getEvenements(params);
       setEvenements(response.data.evenements || []);
+
+      // Charger les événements Google Calendar si l'utilisateur a lié son compte
+      if (user && user.googleAccessToken) {
+        try {
+          console.log('📅 Chargement des événements Google Calendar...');
+          const googleResponse = await googleCalendarService.getGoogleEvents(start, end);
+          if (googleResponse.success && googleResponse.data.events) {
+            setGoogleEvents(googleResponse.data.events);
+            console.log(`✅ ${googleResponse.data.events.length} événements Google chargés`);
+          }
+        } catch (googleErr) {
+          console.error('⚠️ Erreur lors du chargement des événements Google (non bloquant):', googleErr);
+          setGoogleEvents([]);
+        }
+      } else {
+        setGoogleEvents([]);
+      }
     } catch (err) {
       console.error('Erreur lors du chargement des événements:', err);
       setError('Impossible de charger les événements');
@@ -74,9 +95,10 @@ const Agenda = () => {
     }
   };
 
-  // Convertir les événements au format FullCalendar
+  // Convertir les événements au format FullCalendar (fusion Google + Locaux)
   const getCalendarEvents = () => {
-    return evenements.map(evt => ({
+    // Événements locaux
+    const localEvents = evenements.map(evt => ({
       id: evt.id,
       title: evt.titre,
       start: evt.dateDebut,
@@ -84,12 +106,34 @@ const Agenda = () => {
       extendedProps: {
         description: evt.description,
         typeEvenement: evt.typeEvenement,
-        dossier: evt.dossier
+        dossier: evt.dossier,
+        source: 'local'
       },
       backgroundColor: getEventColor(evt.typeEvenement),
       borderColor: getEventColor(evt.typeEvenement),
       classNames: ['fc-event-custom']
     }));
+
+    // Événements Google Calendar (avec style distinct)
+    const googleEventsFormatted = googleEvents.map(evt => ({
+      id: `google-${evt.id}`,
+      title: `📅 ${evt.titre}`,
+      start: evt.dateDebut,
+      end: evt.dateFin,
+      extendedProps: {
+        description: evt.description,
+        source: 'google',
+        googleEventId: evt.googleEventId,
+        htmlLink: evt.htmlLink
+      },
+      backgroundColor: '#4285F4', // Bleu Google
+      borderColor: '#4285F4',
+      classNames: ['fc-event-google'],
+      url: evt.htmlLink // Permet de cliquer pour ouvrir dans Google Calendar
+    }));
+
+    // Fusionner les deux sources
+    return [...localEvents, ...googleEventsFormatted];
   };
 
   // Couleurs selon le type d'événement
@@ -256,7 +300,20 @@ const Agenda = () => {
       };
 
       if (modalMode === 'create') {
+        // Créer l'événement local
         await evenementService.createEvenement(dataToSend);
+        
+        // ✅ Si l'utilisateur a lié Google Calendar, créer aussi sur Google
+        if (user && user.googleAccessToken) {
+          try {
+            console.log('📅 Synchronisation avec Google Calendar...');
+            await googleCalendarService.createGoogleEvent(dataToSend);
+            console.log('✅ Événement créé sur Google Calendar');
+          } catch (googleErr) {
+            console.error('⚠️ Erreur lors de la synchronisation avec Google (non bloquant):', googleErr);
+            // Ne pas bloquer la création locale si Google échoue
+          }
+        }
       } else {
         await evenementService.updateEvenement(selectedEvenement.id, dataToSend);
       }

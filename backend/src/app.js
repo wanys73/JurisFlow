@@ -1,6 +1,30 @@
 // ⚠️ CRITIQUE : Charger les variables d'environnement EN PREMIER
 import dotenv from 'dotenv';
-dotenv.config();
+import { fileURLToPath } from 'url';
+import { dirname, join, resolve } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Remonter au dossier backend (depuis src/)
+const backendDir = resolve(__dirname, '..');
+
+// Charger .env.production si en production, sinon .env
+const envFile = process.env.NODE_ENV === 'production' 
+  ? join(backendDir, '.env.production')
+  : join(backendDir, '.env');
+
+const result = dotenv.config({ path: envFile });
+
+// Log pour debug
+if (result.error) {
+  console.error(`❌ Erreur lors du chargement du fichier .env: ${result.error.message}`);
+  console.error(`   Fichier attendu: ${envFile}`);
+} else {
+  console.log(`✅ Fichier .env chargé: ${envFile}`);
+  console.log(`📊 NODE_ENV: ${process.env.NODE_ENV || 'non défini'}`);
+  console.log(`🌐 FRONTEND_URL: ${process.env.FRONTEND_URL || 'non défini'}`);
+}
 
 import express from 'express';
 import cors from 'cors';
@@ -21,6 +45,7 @@ import rapportRoutes from './routes/rapportRoutes.js';
 import cabinetRoutes from './routes/cabinetRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
+import googleCalendarRoutes from './routes/googleCalendarRoutes.js';
 
 // Import des middlewares d'erreur
 import {
@@ -47,9 +72,13 @@ const app = express();
 app.use(helmet());
 
 // CORS - Configuration pour permettre les requêtes depuis le frontend
+// En production, autoriser uniquement le domaine de production
 // En développement, autoriser plusieurs ports localhost
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [process.env.FRONTEND_URL || 'http://localhost:5173']
+  ? [
+      process.env.FRONTEND_URL || 'https://jurisapp-smart-pro.com',
+      'https://jurisapp-smart-pro.com' // Fallback explicite
+    ].filter(Boolean)
   : [
       'http://localhost:5173',
       'http://localhost:5174',
@@ -184,6 +213,9 @@ app.use('/api/notifications', notificationRoutes);
 
 // Studio IA - Conversations
 app.use('/api/studio-ia', conversationRoutes);
+
+// Google Calendar
+app.use('/api/google-calendar', googleCalendarRoutes);
 
 // === GESTION DES ERREURS ===
 

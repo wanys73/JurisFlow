@@ -21,6 +21,8 @@ import Agenda from './pages/Agenda';
 import Statistiques from './pages/Statistiques';
 import Parametres from './pages/Parametres';
 import IA_Studio from './pages/IA_Studio';
+import Privacy from './pages/Privacy';
+import GoogleAuthCallback from './pages/GoogleAuthCallback';
 
 // Composant pour protéger les routes
 const ProtectedRoute = ({ children }) => {
@@ -95,6 +97,14 @@ function App() {
           <Route 
             path="/reset-password/:token" 
             element={<ResetPassword />} 
+          />
+          <Route 
+            path="/privacy" 
+            element={<Privacy />} 
+          />
+          <Route 
+            path="/auth/google/callback" 
+            element={<GoogleAuthCallback />} 
           />
           
           {/* Routes protégées */}

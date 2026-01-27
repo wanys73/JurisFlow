@@ -124,6 +124,22 @@ export const authService = {
     }
   },
 
+  // Initier l'authentification Google OAuth
+  initiateGoogleAuth: async () => {
+    try {
+      const response = await api.get('/auth/google');
+      if (response.data.success && response.data.authUrl) {
+        // Rediriger vers l'URL d'autorisation Google
+        window.location.href = response.data.authUrl;
+      } else {
+        throw new Error('Impossible d\'obtenir l\'URL d\'autorisation Google');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initiation Google OAuth:', error);
+      throw error;
+    }
+  },
+
   // Récupérer le profil
   getProfile: async () => {
     const response = await api.get('/auth/me');
@@ -400,6 +416,34 @@ export const evenementService = {
   // Supprimer un événement
   deleteEvenement: async (id) => {
     const response = await api.delete(`/agenda/${id}`);
+    return response.data;
+  }
+};
+
+// Service Google Calendar
+export const googleCalendarService = {
+  // Récupérer les événements Google Calendar
+  getGoogleEvents: async (timeMin, timeMax) => {
+    try {
+      const params = {};
+      if (timeMin) params.timeMin = timeMin.toISOString();
+      if (timeMax) params.timeMax = timeMax.toISOString();
+      
+      const response = await api.get('/google-calendar/events', { params });
+      return response.data;
+    } catch (error) {
+      // Si l'utilisateur n'a pas lié son compte Google, retourner un tableau vide
+      if (error.response?.status === 500) {
+        console.log('ℹ️ Pas de compte Google lié ou erreur de récupération');
+        return { success: true, data: { events: [], count: 0 } };
+      }
+      throw error;
+    }
+  },
+
+  // Créer un événement sur Google Calendar
+  createGoogleEvent: async (eventData) => {
+    const response = await api.post('/google-calendar/events', eventData);
     return response.data;
   }
 };

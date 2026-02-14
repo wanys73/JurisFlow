@@ -1,48 +1,18 @@
 {
   "version": 2,
   "name": "jurisflow",
+  "framework": null,
   "builds": [
-    {
-      "src": "backend/src/app.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
+    {"src": "backend/src/app.js", "use": "@vercel/node"},
+    {"src": "frontend/package.json", "use": "@vercel/static-build", "config": {"distDir": "dist"}}
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/src/app.js"
-    },
-    {
-      "src": "/health",
-      "dest": "backend/src/app.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/dist/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/dist/index.html"
-    }
+    {"src": "/api/(.*)", "dest": "backend/src/app.js"},
+    {"src": "/health", "dest": "backend/src/app.js"},
+    {"src": "/(.*)", "dest": "frontend/dist/$1", "handle": "filesystem"},
+    {"src": "/(.*)", "dest": "frontend/dist/index.html"}
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "backend/src/app.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
+  "env": {"NODE_ENV": "production"},
+  "functions": {"backend/src/app.js": {"maxDuration": 30, "memory": 1024}},
   "regions": ["cdg1"]
 }

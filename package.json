@@ -1,0 +1,5 @@
+{
+  "name": "jurisflow",
+  "private": true,
+  "description": "JurisFlow - Monorepo racine pour déploiement Vercel"
+}
